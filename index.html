@@ -189,4 +189,33 @@ function renderData(data) {
         html += '</div>';
       }
       
-      html += '</div>'
+      html += '</div>';
+    }
+  }
+
+  document.getElementById("grid").innerHTML = html;
+}
+
+function load() {
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", API, true);
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      var data = JSON.parse(xhr.responseText);
+      renderData(data);
+    } else {
+      document.getElementById("next").innerText = "Error: " + xhr.status;
+    }
+  };
+  xhr.onerror = function() {
+    document.getElementById("next").innerText = "Connection error";
+  };
+  xhr.send();
+}
+
+load();
+setInterval(load, 60000);
+</script>
+
+</body>
+</html>
