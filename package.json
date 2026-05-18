@@ -1,1 +1,21 @@
-
+{
+  "name": "gsj-transit",
+  "version": "1.0.0",
+  "description": "NYC Transit Dashboard for 1, B, C lines at 86th Street",
+  "main": "netlify/functions/transit.js",
+  "scripts": {
+    "start": "netlify dev"
+  },
+  "dependencies": {
+    "gtfs-realtime-bindings": "^0.4.0"
+  },
+  "devDependencies": {},
+  "keywords": [
+    "transit",
+    "mta",
+    "nyc",
+    "subway"
+  ],
+  "author": "",
+  "license": "MIT"
+}
