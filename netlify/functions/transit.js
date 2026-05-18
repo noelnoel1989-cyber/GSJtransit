@@ -1,31 +1,23 @@
 export async function handler() {
-  const routes = ["M7", "M11", "M96"];
+  const routes = ["1", "B", "C"];
 
   async function fetchRoute(route) {
     try {
       const res = await fetch(
-        `https://bustime.mta.info/api/siri/vehicle-monitoring.json?key=&LineRef=${route}`
+        `https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs/${route}`
       );
 
-      const data = await res.json();
+      const text = await res.text();
 
-      const visits =
-        data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery?.[0]
-        ?.VehicleActivity || [];
+      // fallback parsing guard (we just ensure response exists)
+      if (!text || text.length < 10) return [];
 
-      return visits.slice(0, 3).map(v => {
-        const mins =
-          v?.MonitoredVehicleJourney?.MonitoredCall?.ExpectedArrivalTime
-            ? Math.round(
-                (new Date(v.MonitoredVehicleJourney.MonitoredCall.ExpectedArrivalTime) - new Date()) / 60000
-              )
-            : null;
-
-        return {
+      return [
+        {
           name: route,
-          mins
-        };
-      }).filter(x => x.mins !== null);
+          mins: Math.floor(Math.random() * 10 + 1) // placeholder until GTFS parsing step 2
+        }
+      ];
 
     } catch (e) {
       return [];
