@@ -2,126 +2,116 @@ export async function handler(event, context) {
   try {
     const results = [];
 
+    // Fetch real bus data from MTA Bus Time API
     try {
-      const data = await fetchTransitlandData();
-      results.push(...data);
+      const busData = await fetchBusData();
+      console.log("Bus data fetched:", busData.length);
+      results.push(...busData);
     } catch (e) {
-      console.error("Transitland error:", e.message);
+      console.error("Bus error:", e.message);
     }
 
-    // Fallback test data
-    if (results.length === 0) {
-      results.push(
-        { name: "1 Uptown", mins: 3, color: "red", type: "subway" },
-        { name: "1 Downtown", mins: 7, color: "red", type: "subway" },
-        { name: "A Uptown", mins: 4, color: "blue", type: "subway" },
-        { name: "A Downtown", mins: 9, color: "blue", type: "subway" },
-        { name: "B Uptown", mins: 5, color: "orange", type: "subway" },
-        { name: "B Downtown", mins: 12, color: "orange", type: "subway" },
-        { name: "C Uptown", mins: 8, color: "blue", type: "subway" },
-        { name: "C Downtown", mins: 11, color: "blue", type: "subway" },
-        { name: "D Uptown", mins: 6, color: "orange", type: "subway" },
-        { name: "D Downtown", mins: 14, color: "orange", type: "subway" },
-        { name: "M7 Southbound", mins: 4, color: "green", type: "bus" },
-        { name: "M7 Southbound", mins: 10, color: "green", type: "bus" },
-        { name: "M11 Southbound", mins: 6, color: "purple", type: "bus" },
-        { name: "M11 Southbound", mins: 13, color: "purple", type: "bus" },
-        { name: "M86 Eastbound", mins: 5, color: "yellow", type: "bus" },
-        { name: "M86 Eastbound", mins: 12, color: "yellow", type: "bus" }
-      );
-    }
+    console.log("Returning", results.length, "results");
 
     return {
       statusCode: 200,
-      headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify(results)
     };
   } catch (e) {
+    console.error("Handler error:", e.message);
     return {
       statusCode: 500,
-      headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Content-Type": "application/json"
+      },
       body: JSON.stringify({ error: e.message })
     };
   }
 }
 
-async function fetchTransitlandData() {
+async function fetchBusData() {
   const results = [];
+  const apiKey = "7fddba21-a132-455a-a0e8-52317c61421a";
   const now = new Date();
 
-  // Search for stops near 86th St and Columbus Ave
-  try {
-    console.log("Searching for stops...");
-    const searchUrl = "https://api.transit.land/v2/stops?lat=40.7865&lon=-73.9736&radius_meters=500";
-    const searchResponse = await fetch(searchUrl);
-    
-    if (!searchResponse.ok) {
-      console.log("Search failed:", searchResponse.status);
-      return results;
-    }
+  // Stop codes for buses at 86th St
+  const stops = [
+    { code: "401094", lines: ["M7", "M11"] },  // Columbus & 86th
+    { code: "401897", lines: ["M86"] }         // Amsterdam & 86th
+  ];
 
-    const searchData = await searchResponse.json();
-    console.log("Found stops:", searchData.stops ? searchData.stops.length : 0);
+  for (let i = 0; i < stops.length; i++) {
+    try {
+      const stop = stops[i];
+      const url = "https://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stop.code;
 
-    if (!searchData.stops) {
-      return results;
-    }
+      console.log("Fetching bus stop:", stop.code);
+      const response = await fetch(url);
 
-    // Get departures for each stop
-    for (let i = 0; i < searchData.stops.length; i++) {
-      const stop = searchData.stops[i];
-      console.log("Stop:", stop.name);
+      if (response.status !== 200) {
+        console.log("Status:", response.status);
+        continue;
+      }
 
-      try {
-        const departuresUrl = "https://api.transit.land/v2/stops/" + stop.id + "/departures?limit=30";
-        const depResponse = await fetch(departuresUrl);
+      const data = await response.json();
 
-        if (!depResponse.ok) continue;
+      if (data && data.Siri && data.Siri.ServiceDelivery && data.Siri.ServiceDelivery.StopMonitoringDelivery) {
+        const deliveries = data.Siri.ServiceDelivery.StopMonitoringDelivery;
 
-        const depData = await depResponse.json();
+        for (let d = 0; d < deliveries.length; d++) {
+          const visits = deliveries[d].MonitoredStopVisit || [];
 
-        if (depData.departures && Array.isArray(depData.departures)) {
-          for (let d = 0; d < depData.departures.length; d++) {
-            const dep = depData.departures[d];
+          for (let v = 0; v < visits.length; v++) {
+            const visit = visits[v];
+            const journey = visit.MonitoredVehicleJourney;
 
-            if (!dep.trip || !dep.trip.route) continue;
+            if (!journey) continue;
 
-            const routeName = dep.trip.route.short_name || dep.trip.route.long_name || "";
-            const arrivalTime = dep.estimated_departure_at || dep.scheduled_departure_at;
+            const lineRef = journey.LineRef || "";
+            let routeName = "";
 
-            if (!arrivalTime) continue;
+            for (let l = 0; l < stop.lines.length; l++) {
+              if (lineRef.indexOf(stop.lines[l]) !== -1) {
+                routeName = stop.lines[l];
+                break;
+              }
+            }
 
-            const arrival = new Date(arrivalTime);
-            const mins = Math.round((arrival - now) / 60000);
+            if (!routeName) continue;
+
+            const onwardCalls = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;
+            if (!onwardCalls || onwardCalls.length === 0) continue;
+
+            const arrivalStr = onwardCalls[0].ExpectedArrivalTime || onwardCalls[0].AimedArrivalTime;
+            if (!arrivalStr) continue;
+
+            const arrivalTime = new Date(arrivalStr);
+            const mins = Math.round((arrivalTime - now) / 60000);
 
             if (mins >= 0 && mins <= 60) {
+              const color = routeName === "M7" ? "green" : (routeName === "M11" ? "purple" : "yellow");
+              const direction = routeName === "M86" ? "Eastbound" : "Southbound";
+
               results.push({
-                name: routeName,
+                name: routeName + " " + direction,
                 mins: mins,
-                color: getRouteColor(routeName),
+                color: color,
                 type: "bus"
               });
             }
           }
         }
-      } catch (e) {
-        console.error("Error fetching departures:", e.message);
       }
+    } catch (e) {
+      console.error("Stop error:", e.message);
     }
-  } catch (e) {
-    console.error("Search error:", e.message);
   }
 
-  console.log("Transitland results:", results.length);
+  console.log("Bus results:", results.length);
   return results;
-}
-
-function getRouteColor(routeName) {
-  if (routeName.indexOf("M7") !== -1) return "green";
-  if (routeName.indexOf("M11") !== -1) return "purple";
-  if (routeName.indexOf("M86") !== -1) return "yellow";
-  if (routeName.indexOf("1") !== -1) return "red";
-  if (routeName.indexOf("A") !== -1 || routeName.indexOf("C") !== -1) return "blue";
-  if (routeName.indexOf("B") !== -1 || routeName.indexOf("D") !== -1) return "orange";
-  return "gray";
 }
