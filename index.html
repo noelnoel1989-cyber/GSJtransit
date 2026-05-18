@@ -25,6 +25,10 @@
       border-radius: 12px;
     }
 
+    .spacer {
+      display: none;
+    }
+
     .title {
       font-size: 26px;
       opacity: 0.7;
@@ -212,6 +216,9 @@ async function load() {
         html += createBlockHtml(line, lineGroups[line]);
       }
     });
+
+    // Add empty spacer to push M11 to the right
+    html += '<div class="spacer"></div>';
 
     // Add bus lines (M7, M11)
     const busLines = ["M7", "M11"];
