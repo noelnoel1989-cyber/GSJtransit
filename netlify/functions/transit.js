@@ -1,10 +1,9 @@
 export async function handler() {
   const stops = [
-    { name: "M7/M11 @ 84th St", id: "401094" },
-    { name: "M96 EB @ 96th St", id: "401897" }
+    { name: "M7/M11 Test", id: "401094" }
   ];
 
-  async function get(stop) {
+  async function fetchStop(stop) {
     try {
       const res = await fetch(
         `https://bustime.mta.info/api/siri/stop-monitoring.json?MonitoringRef=${stop.id}`
@@ -20,9 +19,7 @@ export async function handler() {
         const call = v.MonitoredVehicleJourney;
 
         const mins = call?.MonitoredCall?.ExpectedArrivalTime
-          ? Math.round(
-              (new Date(call.MonitoredCall.ExpectedArrivalTime) - new Date()) / 60000
-            )
+          ? Math.round((new Date(call.MonitoredCall.ExpectedArrivalTime) - new Date()) / 60000)
           : null;
 
         return {
@@ -36,8 +33,7 @@ export async function handler() {
     }
   }
 
-  const results = (await Promise.all(stops.map(get))).flat();
-  results.sort((a, b) => a.mins - b.mins);
+  const results = (await Promise.all(stops.map(fetchStop))).flat();
 
   return {
     statusCode: 200,
@@ -47,4 +43,4 @@ export async function handler() {
     },
     body: JSON.stringify(results)
   };
-} 
+}
