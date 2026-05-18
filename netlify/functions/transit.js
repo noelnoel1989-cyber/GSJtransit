@@ -1,15 +1,17 @@
 export async function handler(event, context) {
   try {
-    // Return test data for 1, A, B, C, D trains
+    // Return test data for 1, A, B, C, D trains with uptown/downtown
     const testData = [
-      { name: "1 ↑", mins: 3 },
-      { name: "1 ↓", mins: 7 },
-      { name: "A ↑", mins: 4 },
-      { name: "A ↓", mins: 9 },
-      { name: "B/C ↑", mins: 5 },
-      { name: "B/C ↓", mins: 12 },
-      { name: "D ↑", mins: 6 },
-      { name: "D ↓", mins: 14 }
+      { name: "1 Uptown", mins: 3, color: "red" },
+      { name: "1 Downtown", mins: 7, color: "red" },
+      { name: "A Uptown", mins: 4, color: "blue" },
+      { name: "A Downtown", mins: 9, color: "blue" },
+      { name: "B Uptown", mins: 5, color: "orange" },
+      { name: "B Downtown", mins: 12, color: "orange" },
+      { name: "C Uptown", mins: 8, color: "blue" },
+      { name: "C Downtown", mins: 11, color: "blue" },
+      { name: "D Uptown", mins: 6, color: "orange" },
+      { name: "D Downtown", mins: 14, color: "orange" }
     ];
 
     return {
