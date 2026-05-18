@@ -25,18 +25,6 @@
       border-radius: 12px;
     }
 
-    /* Position M7 in bottom right */
-    .block-m7 {
-      grid-column: 2;
-      grid-row: 3;
-    }
-
-    /* Position M11 in bottom right, below M7 */
-    .block-m11 {
-      grid-column: 2;
-      grid-row: 4;
-    }
-
     .title {
       font-size: 26px;
       opacity: 0.7;
@@ -142,6 +130,28 @@ function getDirection(name) {
   return "";
 }
 
+function createBlockHtml(line, directionGroups) {
+  let blockHtml = '<div class="block"><div class="title">' + line + '</div>';
+
+  directionGroups.forEach(dirGroup => {
+    const trains = dirGroup.trains.slice(0, 2);
+    
+    blockHtml += '<div class="direction-group">';
+    blockHtml += '<div class="direction-label">' + dirGroup.direction + '</div>';
+
+    trains.forEach(t => {
+      blockHtml += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' +
+        t.mins + ' min' +
+        '</div>';
+    });
+
+    blockHtml += '</div>';
+  });
+
+  blockHtml += '</div>';
+  return blockHtml;
+}
+
 async function load() {
   try {
     const res = await fetch(API);
@@ -193,38 +203,22 @@ async function load() {
       lineGroups[line].push(group);
     });
 
-    const lineOrder = ["1", "A", "B", "C", "D", "M7", "M11"];
-    const lineKeys = lineOrder.filter(line => lineGroups[line]);
-
     let html = "";
     
-    lineKeys.forEach((line) => {
-      const directionGroups = lineGroups[line];
-      const color = directionGroups[0].color;
+    // Add subway lines first (1, A, B, C, D)
+    const subwayLines = ["1", "A", "B", "C", "D"];
+    subwayLines.forEach(line => {
+      if (lineGroups[line]) {
+        html += createBlockHtml(line, lineGroups[line]);
+      }
+    });
 
-      let blockClass = "block";
-      if (line === "M7") blockClass = "block block-m7";
-      if (line === "M11") blockClass = "block block-m11";
-
-      let blockHtml = '<div class="' + blockClass + '"><div class="title">' + line + '</div>';
-
-      directionGroups.forEach(dirGroup => {
-        const trains = dirGroup.trains.slice(0, 2);
-        
-        blockHtml += '<div class="direction-group">';
-        blockHtml += '<div class="direction-label">' + dirGroup.direction + '</div>';
-
-        trains.forEach(t => {
-          blockHtml += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' +
-            t.mins + ' min' +
-            '</div>';
-        });
-
-        blockHtml += '</div>';
-      });
-
-      blockHtml += '</div>';
-      html += blockHtml;
+    // Add bus lines (M7, M11)
+    const busLines = ["M7", "M11"];
+    busLines.forEach(line => {
+      if (lineGroups[line]) {
+        html += createBlockHtml(line, lineGroups[line]);
+      }
     });
 
     document.getElementById("grid").innerHTML = html;
