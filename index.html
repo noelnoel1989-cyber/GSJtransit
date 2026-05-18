@@ -1,101 +1,220 @@
-export async function handler(event, context) {
-  try {
-    const results = [];
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>NYC Bus Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='75' font-size='75'>🚌</text></svg>">
 
-    console.log("Starting bus data fetch");
-
-    const busData = await fetchBusData();
-    console.log("Got bus data:", busData.length);
-    results.push(...busData);
-
-    console.log("Returning", results.length, "results");
-
-    return {
-      statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(results)
-    };
-  } catch (e) {
-    console.error("Handler error:", e.message, e.stack);
-    return {
-      statusCode: 500,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ error: e.message })
-    };
-  }
-}
-
-async function fetchBusData() {
-  console.log("fetchBusData called");
-  const results = [];
-  const apiKey = "7fddba21-a132-455a-a0e8-52317c61421a";
-  const now = new Date();
-
-  const stopCode = "401094";
-  const url = "https://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stopCode;
-
-  try {
-    console.log("About to fetch:", url);
-    const response = await fetch(url);
-    console.log("Fetch completed, status:", response.status);
-
-    if (!response.ok) {
-      console.log("Response not ok");
-      return results;
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 20px;
     }
 
-    const data = await response.json();
-    console.log("JSON parsed");
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 15px;
+    }
 
-    const deliveries = data.Siri.ServiceDelivery.StopMonitoringDelivery;
-    console.log("Deliveries:", deliveries.length);
+    .block {
+      border: 1px solid #222;
+      padding: 12px;
+      border-radius: 8px;
+    }
 
-    for (let d = 0; d < deliveries.length; d++) {
-      const visits = deliveries[d].MonitoredStopVisit || [];
+    .title {
+      font-size: 24px;
+      opacity: 0.7;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
 
-      for (let v = 0; v < visits.length; v++) {
-        const journey = visits[v].MonitoredVehicleJourney;
-        if (!journey) continue;
+    .direction-group {
+      margin-bottom: 12px;
+    }
 
-        const lineRef = journey.LineRef || "";
+    .direction-label {
+      font-size: 11px;
+      opacity: 0.6;
+      margin-bottom: 5px;
+      font-style: italic;
+    }
 
-        if (lineRef.indexOf("M7") === -1 && lineRef.indexOf("M11") === -1) {
-          continue;
+    .item {
+      font-size: 18px;
+      margin: 4px 0;
+      padding: 6px 8px;
+      border-radius: 4px;
+      display: block;
+    }
+
+    .green { color: #00ff66; }
+    .yellow { color: #ffd400; }
+    .red-text { color: #ff4d4d; }
+
+    .green-bg { background-color: #00dd44; color: white; }
+    .purple-bg { background-color: #9933ff; color: white; }
+    .yellow-bg { background-color: #ffd400; color: black; }
+
+    .next {
+      font-size: 32px;
+      font-weight: bold;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+<div id="next" class="next">Loading...</div>
+<div class="grid" id="grid"></div>
+
+<script>
+window.addEventListener("unhandledrejection", function(event) {
+  if (event.reason && event.reason.message && event.reason.message.indexOf("listener") !== -1) {
+    event.preventDefault();
+  }
+});
+
+var API = "/.netlify/functions/transit";
+
+function getColorClass(color) {
+  if (color === "green") return "green-bg";
+  if (color === "purple") return "purple-bg";
+  if (color === "yellow") return "yellow-bg";
+  return "green-bg";
+}
+
+function getMinColor(mins) {
+  if (mins <= 5) return "green";
+  if (mins <= 12) return "yellow";
+  return "red-text";
+}
+
+function renderData(data) {
+  if (!data || !data.length) {
+    document.getElementById("next").innerText = "No buses available";
+    return;
+  }
+
+  var groups = {};
+
+  for (var i = 0; i < data.length; i++) {
+    var d = data[i];
+    var line = d.name.split(" ")[0];
+    var direction = d.name.split(" ")[1] || "";
+    var key = line + "-" + direction;
+    
+    if (!groups[key]) {
+      groups[key] = {
+        line: line,
+        direction: direction,
+        buses: [],
+        color: d.color
+      };
+    }
+    groups[key].buses.push(d);
+  }
+
+  var keys = Object.keys(groups);
+  for (var k = 0; k < keys.length; k++) {
+    var buses = groups[keys[k]].buses;
+    buses.sort(function(a, b) {
+      return a.mins - b.mins;
+    });
+  }
+
+  var all = [];
+  for (var k = 0; k < keys.length; k++) {
+    var buses = groups[keys[k]].buses;
+    for (var t = 0; t < buses.length; t++) {
+      all.push(buses[t]);
+    }
+  }
+  all.sort(function(a, b) {
+    return a.mins - b.mins;
+  });
+
+  if (all.length > 0) {
+    var next = all[0];
+    var nextHtml = '<span class="' + getColorClass(next.color) + '">NEXT: ' + next.name + ' — ' + next.mins + ' min</span>';
+    document.getElementById("next").innerHTML = nextHtml;
+  }
+
+  var lineGroups = {};
+  for (var k = 0; k < keys.length; k++) {
+    var group = groups[keys[k]];
+    var line = group.line;
+    if (!lineGroups[line]) {
+      lineGroups[line] = [];
+    }
+    lineGroups[line].push(group);
+  }
+
+  var lineOrder = ["M7", "M11", "M86"];
+  var html = "";
+  
+  for (var l = 0; l < lineOrder.length; l++) {
+    var line = lineOrder[l];
+    if (lineGroups[line]) {
+      var directionGroups = lineGroups[line];
+      html += '<div class="block"><div class="title">' + line + '</div>';
+
+      for (var dg = 0; dg < directionGroups.length; dg++) {
+        var dirGroup = directionGroups[dg];
+        var buses = dirGroup.buses.slice(0, 2);
+        html += '<div class="direction-group"><div class="direction-label">' + dirGroup.direction + '</div>';
+        
+        for (var tr = 0; tr < buses.length; tr++) {
+          var t = buses[tr];
+          html += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' + t.mins + ' min</div>';
         }
-
-        let routeName = lineRef.indexOf("M7") !== -1 ? "M7" : "M11";
-
-        const onwardCalls = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;
-        if (!onwardCalls || onwardCalls.length === 0) continue;
-
-        const arrivalStr = onwardCalls[0].ExpectedArrivalTime || onwardCalls[0].AimedArrivalTime;
-        if (!arrivalStr) continue;
-
-        const arrivalTime = new Date(arrivalStr);
-        const mins = Math.round((arrivalTime - now) / 60000);
-
-        if (mins >= 0 && mins <= 60) {
-          const color = routeName === "M7" ? "green" : "purple";
-          results.push({
-            name: routeName + " Southbound",
-            mins: mins,
-            color: color,
-            type: "bus"
-          });
-        }
+        
+        html += '</div>';
       }
+      
+      html += '</div>';
     }
-
-    console.log("Found", results.length, "arrivals");
-  } catch (e) {
-    console.error("Fetch error:", e.message);
   }
 
-  return results;
+  document.getElementById("grid").innerHTML = html;
 }
+
+function load() {
+  var xhr = new XMLHttpRequest();
+  xhr.timeout = 10000;
+  
+  xhr.open("GET", API, true);
+  xhr.onload = function() {
+    if (xhr.status === 200) {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        renderData(data);
+      } catch (e) {
+        document.getElementById("next").innerText = "Parse error";
+      }
+    } else {
+      document.getElementById("next").innerText = "Error: " + xhr.status;
+    }
+  };
+  
+  xhr.ontimeout = function() {
+    document.getElementById("next").innerText = "Timeout";
+  };
+  
+  xhr.onerror = function() {
+    document.getElementById("next").innerText = "Connection error";
+  };
+  
+  xhr.send();
+}
+
+load();
+setInterval(load, 30000);
+</script>
+
+</body>
+</html>
