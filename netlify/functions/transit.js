@@ -1,42 +1,46 @@
 export async function handler() {
-  const routes = ["1", "B", "C", "M7", "M11", "M96"];
+  const stops = [
+    { line: "1", id: "120S" },   // example placeholder
+    { line: "B", id: "631S" },
+    { line: "C", id: "631S" },
+    { line: "M7", id: "401094" },
+    { line: "M11", id: "401094" },
+    { line: "M96", id: "401897" }
+  ];
 
-  async function fetchRoute(route) {
+  async function fetchStop(stop) {
     try {
-      const res = await fetch(
-        `https://bustime.mta.info/api/siri/vehicle-monitoring.json?LineRef=${route}`
-      );
+      const url =
+        `https://bustime.mta.info/api/siri/stop-monitoring.json?MonitoringRef=${stop.id}`;
 
+      const res = await fetch(url);
       const data = await res.json();
 
       const visits =
-        data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery?.[0]
-        ?.VehicleActivity || [];
+        data?.Siri?.ServiceDelivery?.StopMonitoringDelivery?.[0]
+        ?.MonitoredStopVisit || [];
 
-      const results = visits.map(v => {
-        const call =
-          v?.MonitoredVehicleJourney?.MonitoredCall;
+      return visits.slice(0, 3).map(v => {
+        const call = v.MonitoredVehicleJourney;
 
-        const mins = call?.ExpectedArrivalTime
+        const mins = call?.MonitoredCall?.ExpectedArrivalTime
           ? Math.round(
-              (new Date(call.ExpectedArrivalTime) - new Date()) / 60000
+              (new Date(call.MonitoredCall.ExpectedArrivalTime) - new Date()) / 60000
             )
           : null;
 
         return {
-          line: route,
+          line: stop.line,
           mins
         };
       }).filter(x => x.mins !== null);
-
-      return results.slice(0, 3); // 👈 KEY FIX: top 3 per line
 
     } catch (e) {
       return [];
     }
   }
 
-  const grouped = await Promise.all(routes.map(fetchRoute));
+  const results = (await Promise.all(stops.map(fetchStop))).flat();
 
   return {
     statusCode: 200,
@@ -44,6 +48,6 @@ export async function handler() {
       "Access-Control-Allow-Origin": "*",
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(grouped.flat())
+    body: JSON.stringify(results)
   };
 }
