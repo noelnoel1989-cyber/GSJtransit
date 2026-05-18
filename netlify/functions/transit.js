@@ -2,180 +2,126 @@ export async function handler(event, context) {
   try {
     const results = [];
 
-    // Fetch real bus data
     try {
-      const busData = await fetchBusData();
-      console.log("Bus data fetched:", busData.length);
-      results.push(...busData);
+      const data = await fetchTransitlandData();
+      results.push(...data);
     } catch (e) {
-      console.error("Bus error:", e.message);
+      console.error("Transitland error:", e.message);
     }
 
-    // Add test data for subways
-    const subwayTest = [
-      { name: "1 Uptown", mins: 3, color: "red", type: "subway" },
-      { name: "1 Uptown", mins: 8, color: "red", type: "subway" },
-      { name: "1 Downtown", mins: 7, color: "red", type: "subway" },
-      { name: "1 Downtown", mins: 15, color: "red", type: "subway" },
-      { name: "A Uptown", mins: 4, color: "blue", type: "subway" },
-      { name: "A Uptown", mins: 11, color: "blue", type: "subway" },
-      { name: "A Downtown", mins: 9, color: "blue", type: "subway" },
-      { name: "A Downtown", mins: 18, color: "blue", type: "subway" },
-      { name: "B Uptown", mins: 5, color: "orange", type: "subway" },
-      { name: "B Uptown", mins: 12, color: "orange", type: "subway" },
-      { name: "B Downtown", mins: 12, color: "orange", type: "subway" },
-      { name: "B Downtown", mins: 20, color: "orange", type: "subway" },
-      { name: "C Uptown", mins: 8, color: "blue", type: "subway" },
-      { name: "C Uptown", mins: 16, color: "blue", type: "subway" },
-      { name: "C Downtown", mins: 11, color: "blue", type: "subway" },
-      { name: "C Downtown", mins: 22, color: "blue", type: "subway" },
-      { name: "D Uptown", mins: 6, color: "orange", type: "subway" },
-      { name: "D Uptown", mins: 14, color: "orange", type: "subway" },
-      { name: "D Downtown", mins: 14, color: "orange", type: "subway" },
-      { name: "D Downtown", mins: 25, color: "orange", type: "subway" }
-    ];
-    results.push(...subwayTest);
-
-    console.log("Returning", results.length, "total results");
+    // Fallback test data
+    if (results.length === 0) {
+      results.push(
+        { name: "1 Uptown", mins: 3, color: "red", type: "subway" },
+        { name: "1 Downtown", mins: 7, color: "red", type: "subway" },
+        { name: "A Uptown", mins: 4, color: "blue", type: "subway" },
+        { name: "A Downtown", mins: 9, color: "blue", type: "subway" },
+        { name: "B Uptown", mins: 5, color: "orange", type: "subway" },
+        { name: "B Downtown", mins: 12, color: "orange", type: "subway" },
+        { name: "C Uptown", mins: 8, color: "blue", type: "subway" },
+        { name: "C Downtown", mins: 11, color: "blue", type: "subway" },
+        { name: "D Uptown", mins: 6, color: "orange", type: "subway" },
+        { name: "D Downtown", mins: 14, color: "orange", type: "subway" },
+        { name: "M7 Southbound", mins: 4, color: "green", type: "bus" },
+        { name: "M7 Southbound", mins: 10, color: "green", type: "bus" },
+        { name: "M11 Southbound", mins: 6, color: "purple", type: "bus" },
+        { name: "M11 Southbound", mins: 13, color: "purple", type: "bus" },
+        { name: "M86 Eastbound", mins: 5, color: "yellow", type: "bus" },
+        { name: "M86 Eastbound", mins: 12, color: "yellow", type: "bus" }
+      );
+    }
 
     return {
       statusCode: 200,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-      },
+      headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
       body: JSON.stringify(results)
     };
   } catch (e) {
-    console.error("Handler error:", e.message);
     return {
       statusCode: 500,
-      headers: {
-        "Access-Control-Allow-Origin": "*",
-        "Content-Type": "application/json"
-      },
+      headers: { "Access-Control-Allow-Origin": "*", "Content-Type": "application/json" },
       body: JSON.stringify({ error: e.message })
     };
   }
 }
 
-async function fetchBusData() {
+async function fetchTransitlandData() {
   const results = [];
-  const apiKey = "7fddba21-a132-455a-a0e8-52317c61421a";
-  const stops = [
-    { id: "401094", lines: ["M7", "M11"], label: "Columbus & 86th" },
-    { id: "401897", lines: ["M86"], label: "Amsterdam & 86th" }
-  ];
   const now = new Date();
 
-  for (let i = 0; i < stops.length; i++) {
-    try {
-      const stop = stops[i];
-      const lineRefs = stop.lines.map(l => "MTA%20NYCT_" + l).join(",");
-      const url = "https://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stop.id + "&LineRef=" + lineRefs;
+  // Search for stops near 86th St and Columbus Ave
+  try {
+    console.log("Searching for stops...");
+    const searchUrl = "https://api.transit.land/v2/stops?lat=40.7865&lon=-73.9736&radius_meters=500";
+    const searchResponse = await fetch(searchUrl);
+    
+    if (!searchResponse.ok) {
+      console.log("Search failed:", searchResponse.status);
+      return results;
+    }
 
-      console.log("Fetching", stop.label, "stop:", stop.id);
-      const response = await fetch(url);
-      console.log("Response status:", response.status);
+    const searchData = await searchResponse.json();
+    console.log("Found stops:", searchData.stops ? searchData.stops.length : 0);
 
-      if (!response.ok) {
-        console.log("Skipping stop", stop.id);
-        continue;
-      }
+    if (!searchData.stops) {
+      return results;
+    }
 
-      const data = await response.json();
+    // Get departures for each stop
+    for (let i = 0; i < searchData.stops.length; i++) {
+      const stop = searchData.stops[i];
+      console.log("Stop:", stop.name);
 
-      if (data.Siri && data.Siri.ServiceDelivery && data.Siri.ServiceDelivery.StopMonitoringDelivery) {
-        const deliveries = data.Siri.ServiceDelivery.StopMonitoringDelivery;
-        console.log("Found", deliveries.length, "deliveries at", stop.label);
+      try {
+        const departuresUrl = "https://api.transit.land/v2/stops/" + stop.id + "/departures?limit=30";
+        const depResponse = await fetch(departuresUrl);
 
-        for (let d = 0; d < deliveries.length; d++) {
-          const delivery = deliveries[d];
-          console.log("Delivery", d, "keys:", Object.keys(delivery));
-          
-          const visits = delivery.MonitoredStopVisit || [];
-          console.log("Delivery", d, "has", visits.length, "visits");
+        if (!depResponse.ok) continue;
 
-          for (let v = 0; v < visits.length; v++) {
-            const visit = visits[v];
-            console.log("Visit", v, "keys:", Object.keys(visit));
-            
-            const journey = visit.MonitoredVehicleJourney;
-            console.log("Journey exists:", !!journey);
-            
-            if (!journey) {
-              console.log("No journey in visit", v);
-              continue;
-            }
+        const depData = await depResponse.json();
 
-            console.log("Journey keys:", Object.keys(journey));
-            
-            const lineRef = journey.LineRef || "";
-            console.log("LineRef:", lineRef);
-            
-            let lineName = "";
+        if (depData.departures && Array.isArray(depData.departures)) {
+          for (let d = 0; d < depData.departures.length; d++) {
+            const dep = depData.departures[d];
 
-            if (lineRef.indexOf("M7") !== -1) {
-              lineName = "M7";
-            } else if (lineRef.indexOf("M11") !== -1) {
-              lineName = "M11";
-            } else if (lineRef.indexOf("M86") !== -1) {
-              lineName = "M86";
-            } else {
-              console.log("Line not M7/M11/M86, skipping");
-              continue;
-            }
+            if (!dep.trip || !dep.trip.route) continue;
 
-            console.log("Processing line:", lineName);
+            const routeName = dep.trip.route.short_name || dep.trip.route.long_name || "";
+            const arrivalTime = dep.estimated_departure_at || dep.scheduled_departure_at;
 
-            const onwardCalls = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;
-            console.log("OnwardCalls:", !!onwardCalls, "length:", onwardCalls ? onwardCalls.length : 0);
-            
-            if (!onwardCalls || onwardCalls.length === 0) {
-              console.log("No onward calls");
-              continue;
-            }
+            if (!arrivalTime) continue;
 
-            const arrivalStr = onwardCalls[0].ExpectedArrivalTime || onwardCalls[0].AimedArrivalTime;
-            console.log("Arrival string:", arrivalStr);
-            
-            if (!arrivalStr) {
-              console.log("No arrival time");
-              continue;
-            }
-
-            const arrivalTime = new Date(arrivalStr);
-            const mins = Math.round((arrivalTime - now) / 60000);
-            console.log("Bus", lineName, "arriving in", mins, "mins");
+            const arrival = new Date(arrivalTime);
+            const mins = Math.round((arrival - now) / 60000);
 
             if (mins >= 0 && mins <= 60) {
-              let direction = "Eastbound";
-              if (lineName === "M7" || lineName === "M11") {
-                direction = "Southbound";
-              }
-              
               results.push({
-                name: lineName + " " + direction,
+                name: routeName,
                 mins: mins,
-                color: getLineColor(lineName),
+                color: getRouteColor(routeName),
                 type: "bus"
               });
             }
           }
         }
+      } catch (e) {
+        console.error("Error fetching departures:", e.message);
       }
-    } catch (e) {
-      console.error("Stop error:", e.message);
     }
+  } catch (e) {
+    console.error("Search error:", e.message);
   }
 
-  console.log("Bus data found:", results.length);
+  console.log("Transitland results:", results.length);
   return results;
 }
 
-function getLineColor(lineName) {
-  if (lineName === "M7") return "green";
-  if (lineName === "M11") return "purple";
-  if (lineName === "M86") return "yellow";
+function getRouteColor(routeName) {
+  if (routeName.indexOf("M7") !== -1) return "green";
+  if (routeName.indexOf("M11") !== -1) return "purple";
+  if (routeName.indexOf("M86") !== -1) return "yellow";
+  if (routeName.indexOf("1") !== -1) return "red";
+  if (routeName.indexOf("A") !== -1 || routeName.indexOf("C") !== -1) return "blue";
+  if (routeName.indexOf("B") !== -1 || routeName.indexOf("D") !== -1) return "orange";
   return "gray";
 }
