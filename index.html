@@ -54,7 +54,6 @@
     .yellow { color: #ffd400; }
     .red-text { color: #ff4d4d; }
 
-    /* Train line colors */
     .red-bg {
       background-color: #ff4d4d;
       color: white;
@@ -85,28 +84,16 @@
       font-weight: bold;
       margin-bottom: 30px;
     }
-
-    .debug {
-      font-size: 12px;
-      color: #666;
-      margin-top: 40px;
-      border-top: 1px solid #333;
-      padding-top: 20px;
-    }
   </style>
 </head>
 
 <body>
 
 <div id="next" class="next">Loading...</div>
-
 <div class="grid" id="grid"></div>
-
-<div class="debug" id="debug"></div>
 
 <script>
 
-// Use relative path instead of full domain
 const API = "/.netlify/functions/transit";
 
 function getColorClass(trainColor) {
@@ -115,7 +102,7 @@ function getColorClass(trainColor) {
   if (trainColor === "orange") return "orange-bg";
   if (trainColor === "green") return "green-bg";
   if (trainColor === "purple") return "purple-bg";
-  return "red-bg"; // default
+  return "red-bg";
 }
 
 function getMinColor(mins) {
@@ -124,10 +111,8 @@ function getMinColor(mins) {
   return "red-text";
 }
 
-// Get the line number from the name
 function getLine(name) {
   if (!name) return "Unknown";
-
   if (name.includes("1")) return "1";
   if (name.includes("A")) return "A";
   if (name.includes("B")) return "B";
@@ -135,11 +120,9 @@ function getLine(name) {
   if (name.includes("D")) return "D";
   if (name.includes("M7")) return "M7";
   if (name.includes("M11")) return "M11";
-
   return name;
 }
 
-// Get direction (Uptown, Downtown, or Southbound)
 function getDirection(name) {
   if (name.includes("Uptown")) return "Uptown";
   if (name.includes("Downtown")) return "Downtown";
@@ -147,68 +130,48 @@ function getDirection(name) {
   return "";
 }
 
-function debug(msg) {
-  console.log(msg);
-  const debugEl = document.getElementById("debug");
-  if (debugEl) {
-    debugEl.innerHTML += msg + "<br>";
-  }
-}
-
 async function load() {
   try {
-    debug(`Fetching from: ${API}`);
     const res = await fetch(API);
-    debug(`Response status: ${res.status}`);
-    
     const data = await res.json();
-    debug(`Received data length: ${data.length}`);
 
     if (!data || !data.length) {
       document.getElementById("next").innerText = "No data available";
-      debug("No data returned from API");
       return;
     }
 
-    debug(`Processing ${data.length} items`);
-
-    // Group by line and direction
     const groups = {};
 
     data.forEach(d => {
       const line = getLine(d.name);
       const direction = getDirection(d.name);
-      const key = `${line}-${direction}`;
+      const key = line + "-" + direction;
       
       if (!groups[key]) {
         groups[key] = {
           line: line,
           direction: direction,
           trains: [],
-          color: d.color,
-          type: d.type || "subway"
+          color: d.color
         };
       }
       groups[key].trains.push(d);
     });
 
-    // Sort each group by minutes
     Object.keys(groups).forEach(key => {
       groups[key].trains.sort((a, b) => a.mins - b.mins);
     });
 
-    // find global next (soonest arrival)
     const all = Object.values(groups).flatMap(g => g.trains);
     all.sort((a, b) => a.mins - b.mins);
 
     const next = all[0];
 
     document.getElementById("next").innerHTML =
-      `<span class="${getColorClass(next.color)}">
-        NEXT: ${next.name} — ${next.mins} min
-      </span>`;
+      '<span class="' + getColorClass(next.color) + '">' +
+      'NEXT: ' + next.name + ' — ' + next.mins + ' min' +
+      '</span>';
 
-    // render grid - group by line only (not by direction)
     const lineGroups = {};
     Object.values(groups).forEach(group => {
       const line = group.line;
@@ -218,16 +181,52 @@ async function load() {
       lineGroups[line].push(group);
     });
 
-    const html = Object.keys(lineGroups).sort((a, b) => {
-      // Sort subways first (1, A, B, C, D), then buses (M7, M11)
+    const lineKeys = Object.keys(lineGroups).sort((a, b) => {
       const aIsSubway = !a.includes("M");
       const bIsSubway = !b.includes("M");
       if (aIsSubway !== bIsSubway) return aIsSubway ? -1 : 1;
       return a.localeCompare(b);
-    }).map(line => {
+    });
+
+    let html = "";
+    
+    lineKeys.forEach(line => {
       const directionGroups = lineGroups[line];
       const color = directionGroups[0].color;
-      const type = directionGroups[0].type;
 
-      const directionsHtml = directionGroups.map(dirGroup => {
-        con
+      let blockHtml = '<div class="block"><div class="title">' + line + '</div>';
+
+      directionGroups.forEach(dirGroup => {
+        const trains = dirGroup.trains.slice(0, 2);
+        
+        blockHtml += '<div class="direction-group">';
+        blockHtml += '<div class="direction-label">' + dirGroup.direction + '</div>';
+
+        trains.forEach(t => {
+          blockHtml += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' +
+            t.mins + ' min' +
+            '</div>';
+        });
+
+        blockHtml += '</div>';
+      });
+
+      blockHtml += '</div>';
+      html += blockHtml;
+    });
+
+    document.getElementById("grid").innerHTML = html;
+
+  } catch (e) {
+    console.error("Error:", e);
+    document.getElementById("next").innerText = "Error loading data";
+  }
+}
+
+load();
+setInterval(load, 60000);
+
+</script>
+
+</body>
+</html>
