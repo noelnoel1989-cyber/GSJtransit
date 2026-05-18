@@ -1,17 +1,51 @@
+// Netlify Function: Fetch NYC Subway Transit Data from MTA GTFS-realtime
+// Uses the official MTA protobuf feeds (no authentication required as of 2024)
+// Feeds:
+// - 1 line: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs
+// - B/D/F/M: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-bdfm
+// - A/C/E: https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace
+
+const GTFS = require('gtfs-realtime-bindings');
+
+// Stop IDs for your requested stations:
+// 1 Line at 86th St: 127N (northbound), 127S (southbound)
+// B/C Lines at 86th St: A43N (northbound), A43S (southbound)
+
+const STOPS_TO_TRACK = {
+  "127N": { line: "1", direction: "↑" },  // 1 northbound
+  "127S": { line: "1", direction: "↓" },  // 1 southbound
+  "A43N": { line: "B/C", direction: "↑" },  // B/C northbound
+  "A43S": { line: "B/C", direction: "↓" }   // B/C southbound
+};
+
 export async function handler(event, context) {
   try {
     const results = [];
 
-    // Fetch real bus data from MTA Bus Time API
+    // Fetch 1 line data
     try {
-      const busData = await fetchBusData();
-      console.log("Bus data fetched:", busData.length);
-      results.push(...busData);
+      const data1 = await fetchAndParseGTFS(
+        "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs"
+      );
+      const arrivals1 = extractArrivals(data1, ["127N", "127S"], "1");
+      results.push(...arrivals1);
     } catch (e) {
-      console.error("Bus error:", e.message);
+      console.error("Error fetching 1 line:", e.message);
     }
 
-    console.log("Returning", results.length, "results");
+    // Fetch B/C lines data
+    try {
+      const dataBC = await fetchAndParseGTFS(
+        "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace"
+      );
+      const arrivalsBC = extractArrivals(dataBC, ["A43N", "A43S"], "B/C");
+      results.push(...arrivalsBC);
+    } catch (e) {
+      console.error("Error fetching B/C lines:", e.message);
+    }
+
+    // Sort by arrival time
+    results.sort((a, b) => a.mins - b.mins);
 
     return {
       statusCode: 200,
@@ -21,97 +55,89 @@ export async function handler(event, context) {
       },
       body: JSON.stringify(results)
     };
+
   } catch (e) {
-    console.error("Handler error:", e.message);
+    console.error("Handler error:", e);
     return {
-      statusCode: 500,
+      statusCode: 200,
       headers: {
         "Access-Control-Allow-Origin": "*",
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ error: e.message })
+      body: JSON.stringify([])
     };
   }
 }
 
-async function fetchBusData() {
-  const results = [];
-  const apiKey = "7fddba21-a132-455a-a0e8-52317c61421a";
-  const now = new Date();
-
-  // Stop codes for buses at 86th St
-  const stops = [
-    { code: "401094", lines: ["M7", "M11"] },  // Columbus & 86th
-    { code: "401897", lines: ["M86"] }         // Amsterdam & 86th
-  ];
-
-  for (let i = 0; i < stops.length; i++) {
-    try {
-      const stop = stops[i];
-      const url = "https://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stop.code;
-
-      console.log("Fetching bus stop:", stop.code);
-      const response = await fetch(url);
-
-      if (response.status !== 200) {
-        console.log("Status:", response.status);
-        continue;
-      }
-
-      const data = await response.json();
-
-      if (data && data.Siri && data.Siri.ServiceDelivery && data.Siri.ServiceDelivery.StopMonitoringDelivery) {
-        const deliveries = data.Siri.ServiceDelivery.StopMonitoringDelivery;
-
-        for (let d = 0; d < deliveries.length; d++) {
-          const visits = deliveries[d].MonitoredStopVisit || [];
-
-          for (let v = 0; v < visits.length; v++) {
-            const visit = visits[v];
-            const journey = visit.MonitoredVehicleJourney;
-
-            if (!journey) continue;
-
-            const lineRef = journey.LineRef || "";
-            let routeName = "";
-
-            for (let l = 0; l < stop.lines.length; l++) {
-              if (lineRef.indexOf(stop.lines[l]) !== -1) {
-                routeName = stop.lines[l];
-                break;
-              }
-            }
-
-            if (!routeName) continue;
-
-            const onwardCalls = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;
-            if (!onwardCalls || onwardCalls.length === 0) continue;
-
-            const arrivalStr = onwardCalls[0].ExpectedArrivalTime || onwardCalls[0].AimedArrivalTime;
-            if (!arrivalStr) continue;
-
-            const arrivalTime = new Date(arrivalStr);
-            const mins = Math.round((arrivalTime - now) / 60000);
-
-            if (mins >= 0 && mins <= 60) {
-              const color = routeName === "M7" ? "green" : (routeName === "M11" ? "purple" : "yellow");
-              const direction = routeName === "M86" ? "Eastbound" : "Southbound";
-
-              results.push({
-                name: routeName + " " + direction,
-                mins: mins,
-                color: color,
-                type: "bus"
-              });
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.error("Stop error:", e.message);
-    }
+async function fetchAndParseGTFS(url) {
+  const response = await fetch(url);
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  console.log("Bus results:", results.length);
+  const buffer = await response.arrayBuffer();
+  const feed = GTFS.transit_realtime.FeedMessage.decode(
+    new Uint8Array(buffer)
+  );
+  
+  return feed;
+}
+
+function extractArrivals(feed, targetStopIds, lineName) {
+  const results = [];
+
+  if (!feed || !feed.entity) {
+    return results;
+  }
+
+  const now = new Date();
+
+  feed.entity.forEach(entity => {
+    if (!entity.tripUpdate) return;
+
+    const tripUpdate = entity.tripUpdate;
+    
+    // Get trip info
+    const trip = tripUpdate.trip;
+    if (!trip) return;
+
+    // Get stop time updates
+    const stopTimeUpdates = tripUpdate.stopTimeUpdate || [];
+
+    stopTimeUpdates.forEach(stopUpdate => {
+      const stopId = stopUpdate.stopId;
+      
+      // Check if this is one of our target stops
+      if (!targetStopIds.includes(stopId)) {
+        return;
+      }
+
+      // Get arrival time
+      let arrivalTime = null;
+      if (stopUpdate.arrival && stopUpdate.arrival.time) {
+        arrivalTime = new Date(stopUpdate.arrival.time * 1000);
+      } else if (stopUpdate.departure && stopUpdate.departure.time) {
+        arrivalTime = new Date(stopUpdate.departure.time * 1000);
+      }
+
+      if (!arrivalTime) return;
+
+      // Calculate minutes until arrival
+      const mins = Math.round((arrivalTime - now) / 60000);
+
+      // Only include trains arriving within 2 hours
+      if (mins >= 0 && mins <= 120) {
+        // Determine direction
+        const direction = stopId.includes("N") ? "↑" : "↓";
+
+        results.push({
+          name: `${lineName} ${direction}`,
+          mins: mins
+        });
+      }
+    });
+  });
+
   return results;
 }
