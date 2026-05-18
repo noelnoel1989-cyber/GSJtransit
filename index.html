@@ -13,41 +13,46 @@
       padding: 40px;
     }
 
-    .title {
-      font-size: 24px;
-      opacity: 0.6;
-      margin-bottom: 20px;
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 40px;
     }
 
-    .next {
-      font-size: 90px;
-      font-weight: bold;
-      margin-bottom: 40px;
+    .block {
+      border: 1px solid #222;
+      padding: 20px;
+      border-radius: 12px;
+    }
+
+    .title {
+      font-size: 26px;
+      opacity: 0.7;
+      margin-bottom: 15px;
     }
 
     .item {
-      font-size: 36px;
-      margin: 10px 0;
+      font-size: 28px;
+      margin: 8px 0;
     }
 
     .green { color: #00ff66; }
     .yellow { color: #ffd400; }
     .red { color: #ff4d4d; }
 
-    .loading {
-      opacity: 0.6;
-      font-size: 40px;
+    .next {
+      font-size: 70px;
+      font-weight: bold;
+      margin-bottom: 30px;
     }
   </style>
 </head>
 
 <body>
 
-  <div class="title">NEXT DEPARTURE</div>
-  <div id="next" class="next loading">Loading...</div>
+<div id="next" class="next">Loading...</div>
 
-  <div class="title">NEXT 3 TRAINS</div>
-  <div id="list" class="loading">Loading...</div>
+<div class="grid" id="grid"></div>
 
 <script>
 
@@ -59,45 +64,71 @@ function color(m) {
   return "red";
 }
 
+// normalize line name from backend text
+function getLine(name) {
+  if (!name) return "Unknown";
+
+  if (name.includes("1")) return "1";
+  if (name.includes("B")) return "B";
+  if (name.includes("C")) return "C";
+  if (name.includes("M7")) return "M7";
+  if (name.includes("M11")) return "M11";
+  if (name.includes("M96")) return "M96";
+
+  return name;
+}
+
 async function load() {
-  try {
-    const res = await fetch(API);
-    const data = await res.json();
+  const res = await fetch(API);
+  const data = await res.json();
 
-    if (!data || !data.length) {
-      document.getElementById("next").innerText = "No data available";
-      document.getElementById("list").innerText = "";
-      return;
-    }
-
-    // sort by fastest arrival
-    data.sort((a, b) => a.mins - b.mins);
-
-    // top 3 only
-    const top3 = data.slice(0, 3);
-
-    // main display (next train)
-    const next = top3[0];
-
-    document.getElementById("next").innerHTML =
-      `<span class="${color(next.mins)}">
-        ${next.name} — ${next.mins} min
-      </span>`;
-
-    // list (top 3)
-    document.getElementById("list").innerHTML =
-      top3.map((d, i) =>
-        `<div class="item ${color(d.mins)}">
-          ${i === 0 ? "NEXT → " : ""}
-          ${d.name} — ${d.mins} min
-        </div>`
-      ).join("");
-
-  } catch (err) {
-    document.getElementById("next").innerText = "API error";
-    document.getElementById("list").innerText = "";
-    console.error(err);
+  if (!data || !data.length) {
+    document.getElementById("next").innerText = "No data available";
+    return;
   }
+
+  // group by line
+  const groups = {};
+
+  data.forEach(d => {
+    const line = getLine(d.name);
+    if (!groups[line]) groups[line] = [];
+    groups[line].push(d);
+  });
+
+  // sort each group
+  Object.keys(groups).forEach(line => {
+    groups[line].sort((a, b) => a.mins - b.mins);
+  });
+
+  // find global next
+  const all = Object.values(groups).flat();
+  all.sort((a, b) => a.mins - b.mins);
+
+  const next = all[0];
+
+  document.getElementById("next").innerHTML =
+    `<span class="${color(next.mins)}">
+      NEXT: ${next.name} — ${next.mins} min
+    </span>`;
+
+  // render grid
+  const html = Object.keys(groups).map(line => {
+    const items = groups[line].slice(0, 3);
+
+    return `
+      <div class="block">
+        <div class="title">${line}</div>
+        ${items.map(i =>
+          `<div class="item ${color(i.mins)}">
+            ${i.mins} min
+          </div>`
+        ).join("")}
+      </div>
+    `;
+  }).join("");
+
+  document.getElementById("grid").innerHTML = html;
 }
 
 load();
