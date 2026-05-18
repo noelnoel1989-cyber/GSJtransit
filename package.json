@@ -6,9 +6,7 @@
   "scripts": {
     "start": "netlify dev"
   },
-  "dependencies": {
-    "gtfs-rt-bindings": "^4.9.0"
-  },
+  "dependencies": {},
   "devDependencies": {},
   "keywords": [
     "transit",
