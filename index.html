@@ -25,14 +25,10 @@
       border-radius: 8px;
     }
 
-    /* Force M11 to appear on the right side */
-    .block.m11-block {
-      grid-column: 2;
-      grid-row: auto;
-    }
-
     .spacer {
-      display: none;
+      visibility: hidden;
+      border: none;
+      padding: 0;
     }
 
     .title {
@@ -141,10 +137,7 @@ function getDirection(name) {
 }
 
 function createBlockHtml(line, directionGroups) {
-  const isM11 = line === "M11";
-  const blockClass = isM11 ? 'block m11-block' : 'block';
-  
-  let blockHtml = '<div class="' + blockClass + '"><div class="title">' + line + '</div>';
+  let blockHtml = '<div class="block"><div class="title">' + line + '</div>';
 
   directionGroups.forEach(dirGroup => {
     const trains = dirGroup.trains.slice(0, 2);
@@ -218,12 +211,26 @@ async function load() {
 
     let html = "";
     
-    const allLines = ["1", "A", "B", "C", "D", "M7", "M11"];
-    allLines.forEach(line => {
+    // Render subways: 1, A, B, C, D (fills 3 rows = 6 items)
+    const subwayLines = ["1", "A", "B", "C", "D"];
+    subwayLines.forEach(line => {
       if (lineGroups[line]) {
         html += createBlockHtml(line, lineGroups[line]);
       }
     });
+
+    // Render M7 (takes position 6, right side)
+    if (lineGroups["M7"]) {
+      html += createBlockHtml("M7", lineGroups["M7"]);
+    }
+
+    // Add spacer to push M11 to bottom right
+    html += '<div class="spacer"></div>';
+
+    // Render M11 (takes right side, next row)
+    if (lineGroups["M11"]) {
+      html += createBlockHtml("M11", lineGroups["M11"]);
+    }
 
     document.getElementById("grid").innerHTML = html;
 
