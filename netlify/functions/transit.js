@@ -1,36 +1,45 @@
 // Netlify Function: Fetch NYC Subway Transit Data from MTA GTFS-realtime
-// NO external dependencies - pure JavaScript implementation
+// DEBUG VERSION - with detailed logging
 
 export async function handler(event, context) {
+  console.log("=== Transit Function Started ===");
+  
   try {
     const results = [];
 
     // Fetch 1 line data
+    console.log("Fetching 1 line data...");
     try {
       const arrivals1 = await fetchTrainArrivals(
         "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs",
         ["127N", "127S"],
         "1"
       );
+      console.log(`1 line arrivals: ${arrivals1.length} trains`);
       results.push(...arrivals1);
     } catch (e) {
-      console.error("Error fetching 1 line:", e.message);
+      console.error("Error fetching 1 line:", e.message, e.stack);
     }
 
     // Fetch B/C lines data (A/C/E feed)
+    console.log("Fetching B/C lines data...");
     try {
       const arrivalsBC = await fetchTrainArrivals(
         "https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs-ace",
         ["A43N", "A43S"],
         "B/C"
       );
+      console.log(`B/C lines arrivals: ${arrivalsBC.length} trains`);
       results.push(...arrivalsBC);
     } catch (e) {
-      console.error("Error fetching B/C lines:", e.message);
+      console.error("Error fetching B/C lines:", e.message, e.stack);
     }
 
     // Sort by arrival time
     results.sort((a, b) => a.mins - b.mins);
+
+    console.log(`=== Total results: ${results.length} ===`);
+    console.log("Results:", JSON.stringify(results));
 
     return {
       statusCode: 200,
@@ -42,7 +51,7 @@ export async function handler(event, context) {
     };
 
   } catch (e) {
-    console.error("Handler error:", e);
+    console.error("Handler error:", e.message, e.stack);
     return {
       statusCode: 200,
       headers: {
@@ -58,34 +67,44 @@ async function fetchTrainArrivals(feedUrl, targetStopIds, lineName) {
   const results = [];
 
   try {
+    console.log(`Fetching from: ${feedUrl}`);
     const response = await fetch(feedUrl);
+    
+    console.log(`Response status: ${response.status}`);
     
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}`);
     }
 
     const buffer = await response.arrayBuffer();
+    console.log(`Received ${buffer.byteLength} bytes`);
+    
     const data = new Uint8Array(buffer);
 
     // Parse protobuf manually
-    // FeedMessage is field 1 (repeated Entity)
     const entities = parseProtobufEntities(data);
+    console.log(`Parsed ${entities.length} entities`);
 
     const now = new Date();
 
-    entities.forEach(entity => {
+    entities.forEach((entity, entityIdx) => {
       const tripUpdate = entity.tripUpdate;
-      if (!tripUpdate) return;
+      if (!tripUpdate) {
+        console.log(`Entity ${entityIdx}: no tripUpdate`);
+        return;
+      }
 
       const stopTimeUpdates = tripUpdate.stopTimeUpdate || [];
+      console.log(`Entity ${entityIdx}: ${stopTimeUpdates.length} stop time updates`);
 
-      stopTimeUpdates.forEach(stopUpdate => {
+      stopTimeUpdates.forEach((stopUpdate, stopIdx) => {
         const stopId = stopUpdate.stopId;
 
-        // Check if this is one of our target stops
         if (!targetStopIds.includes(stopId)) {
           return;
         }
+
+        console.log(`Found target stop: ${stopId}`);
 
         // Get arrival time
         let arrivalTime = null;
@@ -96,10 +115,14 @@ async function fetchTrainArrivals(feedUrl, targetStopIds, lineName) {
           arrivalTime = new Date(stopUpdate.departure.time * 1000);
         }
 
-        if (!arrivalTime) return;
+        if (!arrivalTime) {
+          console.log(`Stop ${stopId}: no arrival/departure time`);
+          return;
+        }
 
         // Calculate minutes until arrival
         const mins = Math.round((arrivalTime - now) / 60000);
+        console.log(`Stop ${stopId}: ${mins} minutes`);
 
         // Only include trains arriving within 2 hours
         if (mins >= 0 && mins <= 120) {
@@ -115,7 +138,7 @@ async function fetchTrainArrivals(feedUrl, targetStopIds, lineName) {
     });
 
   } catch (e) {
-    console.error("Error fetching train arrivals:", e.message);
+    console.error(`Error fetching train arrivals for ${lineName}:`, e.message, e.stack);
   }
 
   return results;
