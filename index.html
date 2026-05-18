@@ -25,12 +25,6 @@
       border-radius: 8px;
     }
 
-    .spacer {
-      visibility: hidden;
-      border: none;
-      padding: 0;
-    }
-
     .title {
       font-size: 18px;
       opacity: 0.7;
@@ -99,15 +93,14 @@
 <div class="grid" id="grid"></div>
 
 <script>
-
 const API = "/.netlify/functions/transit";
 
-function getColorClass(trainColor) {
-  if (trainColor === "red") return "red-bg";
-  if (trainColor === "blue") return "blue-bg";
-  if (trainColor === "orange") return "orange-bg";
-  if (trainColor === "green") return "green-bg";
-  if (trainColor === "purple") return "purple-bg";
+function getColorClass(color) {
+  if (color === "red") return "red-bg";
+  if (color === "blue") return "blue-bg";
+  if (color === "orange") return "orange-bg";
+  if (color === "green") return "green-bg";
+  if (color === "purple") return "purple-bg";
   return "red-bg";
 }
 
@@ -118,7 +111,6 @@ function getMinColor(mins) {
 }
 
 function getLine(name) {
-  if (!name) return "Unknown";
   if (name.includes("1")) return "1";
   if (name.includes("A")) return "A";
   if (name.includes("B")) return "B";
@@ -134,28 +126,6 @@ function getDirection(name) {
   if (name.includes("Downtown")) return "Downtown";
   if (name.includes("Southbound")) return "Southbound";
   return "";
-}
-
-function createBlockHtml(line, directionGroups) {
-  let blockHtml = '<div class="block"><div class="title">' + line + '</div>';
-
-  directionGroups.forEach(dirGroup => {
-    const trains = dirGroup.trains.slice(0, 2);
-    
-    blockHtml += '<div class="direction-group">';
-    blockHtml += '<div class="direction-label">' + dirGroup.direction + '</div>';
-
-    trains.forEach(t => {
-      blockHtml += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' +
-        t.mins + ' min' +
-        '</div>';
-    });
-
-    blockHtml += '</div>';
-  });
-
-  blockHtml += '</div>';
-  return blockHtml;
 }
 
 async function load() {
@@ -195,10 +165,7 @@ async function load() {
 
     const next = all[0];
 
-    document.getElementById("next").innerHTML =
-      '<span class="' + getColorClass(next.color) + '">' +
-      'NEXT: ' + next.name + ' — ' + next.mins + ' min' +
-      '</span>';
+    document.getElementById("next").innerHTML = '<span class="' + getColorClass(next.color) + '">NEXT: ' + next.name + ' — ' + next.mins + ' min</span>';
 
     const lineGroups = {};
     Object.values(groups).forEach(group => {
@@ -209,28 +176,28 @@ async function load() {
       lineGroups[line].push(group);
     });
 
+    const lineOrder = ["1", "A", "B", "C", "D", "M7", "M11"];
     let html = "";
     
-    // Render subways: 1, A, B, C, D (fills 3 rows = 6 items)
-    const subwayLines = ["1", "A", "B", "C", "D"];
-    subwayLines.forEach(line => {
+    lineOrder.forEach(line => {
       if (lineGroups[line]) {
-        html += createBlockHtml(line, lineGroups[line]);
+        const directionGroups = lineGroups[line];
+        html += '<div class="block"><div class="title">' + line + '</div>';
+
+        directionGroups.forEach(dirGroup => {
+          const trains = dirGroup.trains.slice(0, 2);
+          html += '<div class="direction-group"><div class="direction-label">' + dirGroup.direction + '</div>';
+          
+          trains.forEach(t => {
+            html += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' + t.mins + ' min</div>';
+          });
+          
+          html += '</div>';
+        });
+        
+        html += '</div>';
       }
     });
-
-    // Render M7 (takes position 6, right side)
-    if (lineGroups["M7"]) {
-      html += createBlockHtml("M7", lineGroups["M7"]);
-    }
-
-    // Add spacer to push M11 to bottom right
-    html += '<div class="spacer"></div>';
-
-    // Render M11 (takes right side, next row)
-    if (lineGroups["M11"]) {
-      html += createBlockHtml("M11", lineGroups["M11"]);
-    }
 
     document.getElementById("grid").innerHTML = html;
 
@@ -242,7 +209,6 @@ async function load() {
 
 load();
 setInterval(load, 60000);
-
 </script>
 
 </body>
