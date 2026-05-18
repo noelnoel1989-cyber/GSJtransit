@@ -1,29 +1,28 @@
 export async function handler() {
-  const stops = [
-    { name: "M7/M11 Test", id: "401094" }
-  ];
+  const routes = ["M7", "M11", "M96"];
 
-  async function fetchStop(stop) {
+  async function fetchRoute(route) {
     try {
       const res = await fetch(
-        `https://bustime.mta.info/api/siri/stop-monitoring.json?MonitoringRef=${stop.id}`
+        `https://bustime.mta.info/api/siri/vehicle-monitoring.json?key=&LineRef=${route}`
       );
 
       const data = await res.json();
 
       const visits =
-        data?.Siri?.ServiceDelivery?.StopMonitoringDelivery?.[0]
-        ?.MonitoredStopVisit || [];
+        data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery?.[0]
+        ?.VehicleActivity || [];
 
-      return visits.map(v => {
-        const call = v.MonitoredVehicleJourney;
-
-        const mins = call?.MonitoredCall?.ExpectedArrivalTime
-          ? Math.round((new Date(call.MonitoredCall.ExpectedArrivalTime) - new Date()) / 60000)
-          : null;
+      return visits.slice(0, 3).map(v => {
+        const mins =
+          v?.MonitoredVehicleJourney?.MonitoredCall?.ExpectedArrivalTime
+            ? Math.round(
+                (new Date(v.MonitoredVehicleJourney.MonitoredCall.ExpectedArrivalTime) - new Date()) / 60000
+              )
+            : null;
 
         return {
-          name: stop.name + " " + (call?.PublishedLineName || ""),
+          name: route,
           mins
         };
       }).filter(x => x.mins !== null);
@@ -33,7 +32,8 @@ export async function handler() {
     }
   }
 
-  const results = (await Promise.all(stops.map(fetchStop))).flat();
+  const results = (await Promise.all(routes.map(fetchRoute))).flat();
+  results.sort((a, b) => a.mins - b.mins);
 
   return {
     statusCode: 200,
