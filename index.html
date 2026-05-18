@@ -25,6 +25,12 @@
       border-radius: 8px;
     }
 
+    /* Force M11 to appear on the right side */
+    .block.m11-block {
+      grid-column: 2;
+      grid-row: auto;
+    }
+
     .spacer {
       display: none;
     }
@@ -135,7 +141,10 @@ function getDirection(name) {
 }
 
 function createBlockHtml(line, directionGroups) {
-  let blockHtml = '<div class="block"><div class="title">' + line + '</div>';
+  const isM11 = line === "M11";
+  const blockClass = isM11 ? 'block m11-block' : 'block';
+  
+  let blockHtml = '<div class="' + blockClass + '"><div class="title">' + line + '</div>';
 
   directionGroups.forEach(dirGroup => {
     const trains = dirGroup.trains.slice(0, 2);
@@ -209,17 +218,8 @@ async function load() {
 
     let html = "";
     
-    const subwayLines = ["1", "A", "B", "C", "D"];
-    subwayLines.forEach(line => {
-      if (lineGroups[line]) {
-        html += createBlockHtml(line, lineGroups[line]);
-      }
-    });
-
-    html += '<div class="spacer"></div>';
-
-    const busLines = ["M7", "M11"];
-    busLines.forEach(line => {
+    const allLines = ["1", "A", "B", "C", "D", "M7", "M11"];
+    allLines.forEach(line => {
       if (lineGroups[line]) {
         html += createBlockHtml(line, lineGroups[line]);
       }
