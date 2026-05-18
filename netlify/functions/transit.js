@@ -62,20 +62,24 @@ export async function handler(event, context) {
 async function fetchBusData() {
   const results = [];
   const apiKey = "7fddba21-a132-455a-a0e8-52317c61421a";
-  const stopIds = ["400969", "400970"];
+  const stops = [
+    { id: "401094", lines: ["M7", "M11"], label: "Columbus & 86th" },
+    { id: "401897", lines: ["M86"], label: "Amsterdam & 86th" }
+  ];
   const now = new Date();
 
-  for (let i = 0; i < stopIds.length; i++) {
+  for (let i = 0; i < stops.length; i++) {
     try {
-      const stopId = stopIds[i];
-      const url = "https://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stopId;
+      const stop = stops[i];
+      const lineRefs = stop.lines.map(l => "MTA%20NYCT_" + l).join(",");
+      const url = "https://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stop.id + "&LineRef=" + lineRefs;
 
-      console.log("Fetching bus stop:", stopId);
+      console.log("Fetching", stop.label, "stop:", stop.id);
       const response = await fetch(url);
       console.log("Response status:", response.status);
 
       if (!response.ok) {
-        console.log("Skipping stop", stopId);
+        console.log("Skipping stop", stop.id);
         continue;
       }
 
@@ -83,6 +87,7 @@ async function fetchBusData() {
 
       if (data.Siri && data.Siri.ServiceDelivery && data.Siri.ServiceDelivery.StopMonitoringDelivery) {
         const deliveries = data.Siri.ServiceDelivery.StopMonitoringDelivery;
+        console.log("Found", deliveries.length, "deliveries at", stop.label);
 
         for (let d = 0; d < deliveries.length; d++) {
           const visits = deliveries[d].MonitoredStopVisit || [];
@@ -98,6 +103,8 @@ async function fetchBusData() {
               lineName = "M7";
             } else if (lineRef.indexOf("M11") !== -1) {
               lineName = "M11";
+            } else if (lineRef.indexOf("M86") !== -1) {
+              lineName = "M86";
             } else {
               continue;
             }
@@ -112,10 +119,15 @@ async function fetchBusData() {
             const mins = Math.round((arrivalTime - now) / 60000);
 
             if (mins >= 0 && mins <= 60) {
+              let direction = "Eastbound";
+              if (lineName === "M7" || lineName === "M11") {
+                direction = "Southbound";
+              }
+              
               results.push({
-                name: lineName + " Southbound",
+                name: lineName + " " + direction,
                 mins: mins,
-                color: lineName === "M7" ? "green" : "purple",
+                color: getLineColor(lineName),
                 type: "bus"
               });
             }
@@ -129,4 +141,11 @@ async function fetchBusData() {
 
   console.log("Bus data found:", results.length);
   return results;
+}
+
+function getLineColor(lineName) {
+  if (lineName === "M7") return "green";
+  if (lineName === "M11") return "purple";
+  if (lineName === "M86") return "yellow";
+  return "gray";
 }
