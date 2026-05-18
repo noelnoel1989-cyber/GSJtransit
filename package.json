@@ -7,7 +7,7 @@
     "start": "netlify dev"
   },
   "dependencies": {
-    "gtfs-realtime-bindings": "^0.3.0"
+    "gtfs-rt-bindings": "^4.9.0"
   },
   "devDependencies": {},
   "keywords": [
