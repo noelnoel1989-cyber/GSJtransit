@@ -1,31 +1,42 @@
 export async function handler() {
-  const routes = ["1", "B", "C"];
+  const routes = ["1", "B", "C", "M7", "M11", "M96"];
 
   async function fetchRoute(route) {
     try {
       const res = await fetch(
-        `https://api-endpoint.mta.info/Dataservice/mtagtfsfeeds/nyct%2Fgtfs/${route}`
+        `https://bustime.mta.info/api/siri/vehicle-monitoring.json?LineRef=${route}`
       );
 
-      const text = await res.text();
+      const data = await res.json();
 
-      // fallback parsing guard (we just ensure response exists)
-      if (!text || text.length < 10) return [];
+      const visits =
+        data?.Siri?.ServiceDelivery?.VehicleMonitoringDelivery?.[0]
+        ?.VehicleActivity || [];
 
-      return [
-        {
-          name: route,
-          mins: Math.floor(Math.random() * 10 + 1) // placeholder until GTFS parsing step 2
-        }
-      ];
+      const results = visits.map(v => {
+        const call =
+          v?.MonitoredVehicleJourney?.MonitoredCall;
+
+        const mins = call?.ExpectedArrivalTime
+          ? Math.round(
+              (new Date(call.ExpectedArrivalTime) - new Date()) / 60000
+            )
+          : null;
+
+        return {
+          line: route,
+          mins
+        };
+      }).filter(x => x.mins !== null);
+
+      return results.slice(0, 3); // 👈 KEY FIX: top 3 per line
 
     } catch (e) {
       return [];
     }
   }
 
-  const results = (await Promise.all(routes.map(fetchRoute))).flat();
-  results.sort((a, b) => a.mins - b.mins);
+  const grouped = await Promise.all(routes.map(fetchRoute));
 
   return {
     statusCode: 200,
@@ -33,6 +44,6 @@ export async function handler() {
       "Access-Control-Allow-Origin": "*",
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(results)
+    body: JSON.stringify(grouped.flat())
   };
 }
