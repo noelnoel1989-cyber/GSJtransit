@@ -34,16 +34,43 @@
     .item {
       font-size: 28px;
       margin: 8px 0;
+      padding: 8px 12px;
+      border-radius: 6px;
+      display: inline-block;
     }
 
     .green { color: #00ff66; }
     .yellow { color: #ffd400; }
-    .red { color: #ff4d4d; }
+    .red-text { color: #ff4d4d; }
+
+    /* Train line colors */
+    .red-bg {
+      background-color: #ff4d4d;
+      color: white;
+    }
+
+    .blue-bg {
+      background-color: #4da6ff;
+      color: white;
+    }
+
+    .orange-bg {
+      background-color: #ff9933;
+      color: white;
+    }
 
     .next {
       font-size: 70px;
       font-weight: bold;
       margin-bottom: 30px;
+    }
+
+    .debug {
+      font-size: 12px;
+      color: #666;
+      margin-top: 40px;
+      border-top: 1px solid #333;
+      padding-top: 20px;
     }
   </style>
 </head>
@@ -54,14 +81,24 @@
 
 <div class="grid" id="grid"></div>
 
+<div class="debug" id="debug"></div>
+
 <script>
 
-const API = "https://gsjtransit.netlify.app/.netlify/functions/transit";
+// Use relative path instead of full domain
+const API = "/.netlify/functions/transit";
 
-function color(m) {
-  if (m <= 5) return "green";
-  if (m <= 12) return "yellow";
-  return "red";
+function getColorClass(trainColor) {
+  if (trainColor === "red") return "red-bg";
+  if (trainColor === "blue") return "blue-bg";
+  if (trainColor === "orange") return "orange-bg";
+  return "red-bg"; // default
+}
+
+function getMinColor(mins) {
+  if (mins <= 5) return "green";
+  if (mins <= 12) return "yellow";
+  return "red-text";
 }
 
 // normalize line name from backend text
@@ -69,66 +106,88 @@ function getLine(name) {
   if (!name) return "Unknown";
 
   if (name.includes("1")) return "1";
+  if (name.includes("A")) return "A";
   if (name.includes("B")) return "B";
   if (name.includes("C")) return "C";
-  if (name.includes("M7")) return "M7";
-  if (name.includes("M11")) return "M11";
-  if (name.includes("M96")) return "M96";
+  if (name.includes("D")) return "D";
 
   return name;
 }
 
-async function load() {
-  const res = await fetch(API);
-  const data = await res.json();
-
-  if (!data || !data.length) {
-    document.getElementById("next").innerText = "No data available";
-    return;
+function debug(msg) {
+  console.log(msg);
+  const debugEl = document.getElementById("debug");
+  if (debugEl) {
+    debugEl.innerHTML += msg + "<br>";
   }
+}
 
-  // group by line
-  const groups = {};
+async function load() {
+  try {
+    debug(`Fetching from: ${API}`);
+    const res = await fetch(API);
+    debug(`Response status: ${res.status}`);
+    
+    const data = await res.json();
+    debug(`Received data length: ${data.length}`);
 
-  data.forEach(d => {
-    const line = getLine(d.name);
-    if (!groups[line]) groups[line] = [];
-    groups[line].push(d);
-  });
+    if (!data || !data.length) {
+      document.getElementById("next").innerText = "No data available";
+      debug("No data returned from API");
+      return;
+    }
 
-  // sort each group
-  Object.keys(groups).forEach(line => {
-    groups[line].sort((a, b) => a.mins - b.mins);
-  });
+    debug(`Processing ${data.length} items`);
 
-  // find global next
-  const all = Object.values(groups).flat();
-  all.sort((a, b) => a.mins - b.mins);
+    // group by line
+    const groups = {};
 
-  const next = all[0];
+    data.forEach(d => {
+      const line = getLine(d.name);
+      if (!groups[line]) groups[line] = [];
+      groups[line].push(d);
+    });
 
-  document.getElementById("next").innerHTML =
-    `<span class="${color(next.mins)}">
-      NEXT: ${next.name} — ${next.mins} min
-    </span>`;
+    debug(`Grouped into ${Object.keys(groups).length} lines`);
 
-  // render grid
-  const html = Object.keys(groups).map(line => {
-    const items = groups[line].slice(0, 3);
+    // sort each group
+    Object.keys(groups).forEach(line => {
+      groups[line].sort((a, b) => a.mins - b.mins);
+    });
 
-    return `
-      <div class="block">
-        <div class="title">${line}</div>
-        ${items.map(i =>
-          `<div class="item ${color(i.mins)}">
-            ${i.mins} min
-          </div>`
-        ).join("")}
-      </div>
-    `;
-  }).join("");
+    // find global next
+    const all = Object.values(groups).flat();
+    all.sort((a, b) => a.mins - b.mins);
 
-  document.getElementById("grid").innerHTML = html;
+    const next = all[0];
+
+    document.getElementById("next").innerHTML =
+      `<span class="${getColorClass(next.color)}">
+        NEXT: ${next.name} — ${next.mins} min
+      </span>`;
+
+    // render grid
+    const html = Object.keys(groups).map(line => {
+      const items = groups[line].slice(0, 3);
+
+      return `
+        <div class="block">
+          <div class="title">${line}</div>
+          ${items.map(i =>
+            `<div class="item ${getColorClass(i.color)}">
+              ${i.name}: ${i.mins} min
+            </div>`
+          ).join("")}
+        </div>
+      `;
+    }).join("");
+
+    document.getElementById("grid").innerHTML = html;
+    debug("Rendering complete");
+  } catch (e) {
+    console.error("Error:", e);
+    debug(`ERROR: ${e.message}`);
+  }
 }
 
 load();
