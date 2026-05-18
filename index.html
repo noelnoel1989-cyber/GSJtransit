@@ -1,1 +1,83 @@
- 
+ <!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Transit Board</title>
+
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      color: white;
+      font-family: Arial, sans-serif;
+      padding: 40px;
+    }
+
+    .title {
+      font-size: 26px;
+      opacity: 0.6;
+      margin-bottom: 20px;
+    }
+
+    .next {
+      font-size: 80px;
+      font-weight: bold;
+      margin-bottom: 30px;
+    }
+
+    .item {
+      font-size: 32px;
+      margin: 10px 0;
+    }
+
+    .green { color: #00ff66; }
+    .yellow { color: #ffd400; }
+    .red { color: #ff4d4d; }
+  </style>
+</head>
+
+<body>
+
+<div class="title">NEXT DEPARTURE</div>
+<div id="next" class="next">Loading...</div>
+
+<div class="title">ALL OPTIONS</div>
+<div id="list"></div>
+
+<script>
+
+const API = "https://YOUR-NETLIFY-SITE.netlify.app/.netlify/functions/transit";
+
+function color(m) {
+  if (m <= 5) return "green";
+  if (m <= 12) return "yellow";
+  return "red";
+}
+
+async function load() {
+  const res = await fetch(API);
+  const data = await res.json();
+
+  if (!data.length) {
+    document.getElementById("next").innerText = "No data available";
+    return;
+  }
+
+  const next = data[0];
+
+  document.getElementById("next").innerHTML =
+    `<span class="${color(next.mins)}">${next.name} — ${next.mins} min</span>`;
+
+  document.getElementById("list").innerHTML =
+    data.slice(0, 6).map(d =>
+      `<div class="item ${color(d.mins)}">${d.name} — ${d.mins} min</div>`
+    ).join("");
+}
+
+load();
+setInterval(load, 60000);
+
+</script>
+
+</body>
+</html>
