@@ -90,13 +90,29 @@ async function fetchBusData() {
         console.log("Found", deliveries.length, "deliveries at", stop.label);
 
         for (let d = 0; d < deliveries.length; d++) {
-          const visits = deliveries[d].MonitoredStopVisit || [];
+          const delivery = deliveries[d];
+          console.log("Delivery", d, "keys:", Object.keys(delivery));
+          
+          const visits = delivery.MonitoredStopVisit || [];
+          console.log("Delivery", d, "has", visits.length, "visits");
 
           for (let v = 0; v < visits.length; v++) {
-            const journey = visits[v].MonitoredVehicleJourney;
-            if (!journey) continue;
+            const visit = visits[v];
+            console.log("Visit", v, "keys:", Object.keys(visit));
+            
+            const journey = visit.MonitoredVehicleJourney;
+            console.log("Journey exists:", !!journey);
+            
+            if (!journey) {
+              console.log("No journey in visit", v);
+              continue;
+            }
 
+            console.log("Journey keys:", Object.keys(journey));
+            
             const lineRef = journey.LineRef || "";
+            console.log("LineRef:", lineRef);
+            
             let lineName = "";
 
             if (lineRef.indexOf("M7") !== -1) {
@@ -106,17 +122,31 @@ async function fetchBusData() {
             } else if (lineRef.indexOf("M86") !== -1) {
               lineName = "M86";
             } else {
+              console.log("Line not M7/M11/M86, skipping");
               continue;
             }
 
+            console.log("Processing line:", lineName);
+
             const onwardCalls = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;
-            if (!onwardCalls || onwardCalls.length === 0) continue;
+            console.log("OnwardCalls:", !!onwardCalls, "length:", onwardCalls ? onwardCalls.length : 0);
+            
+            if (!onwardCalls || onwardCalls.length === 0) {
+              console.log("No onward calls");
+              continue;
+            }
 
             const arrivalStr = onwardCalls[0].ExpectedArrivalTime || onwardCalls[0].AimedArrivalTime;
-            if (!arrivalStr) continue;
+            console.log("Arrival string:", arrivalStr);
+            
+            if (!arrivalStr) {
+              console.log("No arrival time");
+              continue;
+            }
 
             const arrivalTime = new Date(arrivalStr);
             const mins = Math.round((arrivalTime - now) / 60000);
+            console.log("Bus", lineName, "arriving in", mins, "mins");
 
             if (mins >= 0 && mins <= 60) {
               let direction = "Eastbound";
