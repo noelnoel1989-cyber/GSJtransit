@@ -10,19 +10,19 @@
       background: black;
       color: white;
       font-family: Arial, sans-serif;
-      padding: 40px;
+      padding: 20px;
     }
 
     .grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
-      gap: 40px;
+      gap: 15px;
     }
 
     .block {
       border: 1px solid #222;
-      padding: 20px;
-      border-radius: 12px;
+      padding: 12px;
+      border-radius: 8px;
     }
 
     .spacer {
@@ -30,27 +30,27 @@
     }
 
     .title {
-      font-size: 26px;
+      font-size: 18px;
       opacity: 0.7;
-      margin-bottom: 15px;
+      margin-bottom: 10px;
     }
 
     .direction-group {
-      margin-bottom: 20px;
+      margin-bottom: 12px;
     }
 
     .direction-label {
-      font-size: 14px;
+      font-size: 11px;
       opacity: 0.6;
-      margin-bottom: 8px;
+      margin-bottom: 5px;
       font-style: italic;
     }
 
     .item {
-      font-size: 28px;
-      margin: 6px 0;
-      padding: 8px 12px;
-      border-radius: 6px;
+      font-size: 18px;
+      margin: 4px 0;
+      padding: 6px 8px;
+      border-radius: 4px;
       display: block;
     }
 
@@ -84,9 +84,9 @@
     }
 
     .next {
-      font-size: 70px;
+      font-size: 32px;
       font-weight: bold;
-      margin-bottom: 30px;
+      margin-bottom: 20px;
     }
   </style>
 </head>
@@ -209,7 +209,6 @@ async function load() {
 
     let html = "";
     
-    // Add subway lines first (1, A, B, C, D)
     const subwayLines = ["1", "A", "B", "C", "D"];
     subwayLines.forEach(line => {
       if (lineGroups[line]) {
@@ -217,10 +216,8 @@ async function load() {
       }
     });
 
-    // Add empty spacer to push M11 to the right
     html += '<div class="spacer"></div>';
 
-    // Add bus lines (M7, M11)
     const busLines = ["M7", "M11"];
     busLines.forEach(line => {
       if (lineGroups[line]) {
