@@ -181,16 +181,13 @@ async function load() {
       lineGroups[line].push(group);
     });
 
-    const lineKeys = Object.keys(lineGroups).sort((a, b) => {
-      const aIsSubway = !a.includes("M");
-      const bIsSubway = !b.includes("M");
-      if (aIsSubway !== bIsSubway) return aIsSubway ? -1 : 1;
-      return a.localeCompare(b);
-    });
+    // Custom sort order: subways first (1, A, B, C, D), then buses (M7, M11)
+    const lineOrder = ["1", "A", "B", "C", "D", "M7", "M11"];
+    const lineKeys = lineOrder.filter(line => lineGroups[line]);
 
     let html = "";
     
-    lineKeys.forEach(line => {
+    lineKeys.forEach((line, index) => {
       const directionGroups = lineGroups[line];
       const color = directionGroups[0].color;
 
