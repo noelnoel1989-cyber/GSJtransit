@@ -57,28 +57,62 @@ async function fetchBusData() {
     console.log("Deliveries:", deliveries.length);
 
     for (let d = 0; d < deliveries.length; d++) {
+      console.log("Processing delivery", d);
+      console.log("Delivery keys:", Object.keys(deliveries[d]));
+      
       const visits = deliveries[d].MonitoredStopVisit || [];
+      console.log("Visits in delivery", d, ":", visits.length);
+
+      if (visits.length === 0) {
+        console.log("No visits in delivery", d);
+        continue;
+      }
 
       for (let v = 0; v < visits.length; v++) {
-        const journey = visits[v].MonitoredVehicleJourney;
-        if (!journey) continue;
+        console.log("Processing visit", v);
+        const visit = visits[v];
+        console.log("Visit keys:", Object.keys(visit));
+        
+        const journey = visit.MonitoredVehicleJourney;
+        console.log("Journey exists:", !!journey);
+        
+        if (!journey) {
+          console.log("No journey in visit", v);
+          continue;
+        }
+
+        console.log("Journey keys:", Object.keys(journey));
 
         const lineRef = journey.LineRef || "";
+        console.log("LineRef:", lineRef);
 
         if (lineRef.indexOf("M7") === -1 && lineRef.indexOf("M11") === -1) {
+          console.log("Not M7 or M11, skipping");
           continue;
         }
 
         let routeName = lineRef.indexOf("M7") !== -1 ? "M7" : "M11";
+        console.log("Route:", routeName);
 
         const onwardCalls = journey.OnwardCalls && journey.OnwardCalls.OnwardCall;
-        if (!onwardCalls || onwardCalls.length === 0) continue;
+        console.log("OnwardCalls:", !!onwardCalls, "length:", onwardCalls ? onwardCalls.length : 0);
+        
+        if (!onwardCalls || onwardCalls.length === 0) {
+          console.log("No onward calls");
+          continue;
+        }
 
         const arrivalStr = onwardCalls[0].ExpectedArrivalTime || onwardCalls[0].AimedArrivalTime;
-        if (!arrivalStr) continue;
+        console.log("Arrival string:", arrivalStr);
+        
+        if (!arrivalStr) {
+          console.log("No arrival time");
+          continue;
+        }
 
         const arrivalTime = new Date(arrivalStr);
         const mins = Math.round((arrivalTime - now) / 60000);
+        console.log("Minutes:", mins);
 
         if (mins >= 0 && mins <= 60) {
           const color = routeName === "M7" ? "green" : "purple";
@@ -88,13 +122,14 @@ async function fetchBusData() {
             color: color,
             type: "bus"
           });
+          console.log("Added result");
         }
       }
     }
 
     console.log("Found", results.length, "arrivals");
   } catch (e) {
-    console.error("Fetch error:", e.message);
+    console.error("Fetch error:", e.message, e.stack);
   }
 
   return results;
