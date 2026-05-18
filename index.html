@@ -70,6 +70,16 @@
       color: white;
     }
 
+    .green-bg {
+      background-color: #00dd44;
+      color: white;
+    }
+
+    .purple-bg {
+      background-color: #9933ff;
+      color: white;
+    }
+
     .next {
       font-size: 70px;
       font-weight: bold;
@@ -103,6 +113,8 @@ function getColorClass(trainColor) {
   if (trainColor === "red") return "red-bg";
   if (trainColor === "blue") return "blue-bg";
   if (trainColor === "orange") return "orange-bg";
+  if (trainColor === "green") return "green-bg";
+  if (trainColor === "purple") return "purple-bg";
   return "red-bg"; // default
 }
 
@@ -121,14 +133,17 @@ function getLine(name) {
   if (name.includes("B")) return "B";
   if (name.includes("C")) return "C";
   if (name.includes("D")) return "D";
+  if (name.includes("M7")) return "M7";
+  if (name.includes("M11")) return "M11";
 
   return name;
 }
 
-// Get direction (Uptown or Downtown)
+// Get direction (Uptown, Downtown, or Southbound)
 function getDirection(name) {
   if (name.includes("Uptown")) return "Uptown";
   if (name.includes("Downtown")) return "Downtown";
+  if (name.includes("Southbound")) return "Southbound";
   return "";
 }
 
@@ -170,7 +185,8 @@ async function load() {
           line: line,
           direction: direction,
           trains: [],
-          color: d.color
+          color: d.color,
+          type: d.type || "subway"
         };
       }
       groups[key].trains.push(d);
@@ -202,45 +218,16 @@ async function load() {
       lineGroups[line].push(group);
     });
 
-    const html = Object.keys(lineGroups).sort().map(line => {
+    const html = Object.keys(lineGroups).sort((a, b) => {
+      // Sort subways first (1, A, B, C, D), then buses (M7, M11)
+      const aIsSubway = !a.includes("M");
+      const bIsSubway = !b.includes("M");
+      if (aIsSubway !== bIsSubway) return aIsSubway ? -1 : 1;
+      return a.localeCompare(b);
+    }).map(line => {
       const directionGroups = lineGroups[line];
-      const color = directionGroups[0].color; // All directions of same line have same color
+      const color = directionGroups[0].color;
+      const type = directionGroups[0].type;
 
       const directionsHtml = directionGroups.map(dirGroup => {
-        const trains = dirGroup.trains.slice(0, 2); // Get first 2 trains
-        
-        return `
-          <div class="direction-group">
-            <div class="direction-label">${dirGroup.direction}</div>
-            ${trains.map(t =>
-              `<div class="item ${getColorClass(t.color)} ${getMinColor(t.mins)}">
-                ${t.mins} min
-              </div>`
-            ).join("")}
-          </div>
-        `;
-      }).join("");
-
-      return `
-        <div class="block">
-          <div class="title">${line}</div>
-          ${directionsHtml}
-        </div>
-      `;
-    }).join("");
-
-    document.getElementById("grid").innerHTML = html;
-    debug("Rendering complete");
-  } catch (e) {
-    console.error("Error:", e);
-    debug(`ERROR: ${e.message}`);
-  }
-}
-
-load();
-setInterval(load, 60000);
-
-</script>
-
-</body>
-</html>
+        con
