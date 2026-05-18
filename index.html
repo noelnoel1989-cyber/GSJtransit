@@ -54,30 +54,11 @@
     .yellow { color: #ffd400; }
     .red-text { color: #ff4d4d; }
 
-    .red-bg {
-      background-color: #ff4d4d;
-      color: white;
-    }
-
-    .blue-bg {
-      background-color: #4da6ff;
-      color: white;
-    }
-
-    .orange-bg {
-      background-color: #ff9933;
-      color: white;
-    }
-
-    .green-bg {
-      background-color: #00dd44;
-      color: white;
-    }
-
-    .purple-bg {
-      background-color: #9933ff;
-      color: white;
-    }
+    .red-bg { background-color: #ff4d4d; color: white; }
+    .blue-bg { background-color: #4da6ff; color: white; }
+    .orange-bg { background-color: #ff9933; color: white; }
+    .green-bg { background-color: #00dd44; color: white; }
+    .purple-bg { background-color: #9933ff; color: white; }
 
     .next {
       font-size: 32px;
@@ -88,12 +69,11 @@
 </head>
 
 <body>
-
 <div id="next" class="next">Loading...</div>
 <div class="grid" id="grid"></div>
 
 <script>
-const API = "/.netlify/functions/transit";
+var API = "/.netlify/functions/transit";
 
 function getColorClass(color) {
   if (color === "red") return "red-bg";
@@ -111,100 +91,119 @@ function getMinColor(mins) {
 }
 
 function getLine(name) {
-  if (name.includes("1")) return "1";
-  if (name.includes("A")) return "A";
-  if (name.includes("B")) return "B";
-  if (name.includes("C")) return "C";
-  if (name.includes("D")) return "D";
-  if (name.includes("M7")) return "M7";
-  if (name.includes("M11")) return "M11";
+  if (name.indexOf("1") !== -1) return "1";
+  if (name.indexOf("A") !== -1) return "A";
+  if (name.indexOf("B") !== -1) return "B";
+  if (name.indexOf("C") !== -1) return "C";
+  if (name.indexOf("D") !== -1) return "D";
+  if (name.indexOf("M7") !== -1) return "M7";
+  if (name.indexOf("M11") !== -1) return "M11";
   return name;
 }
 
 function getDirection(name) {
-  if (name.includes("Uptown")) return "Uptown";
-  if (name.includes("Downtown")) return "Downtown";
-  if (name.includes("Southbound")) return "Southbound";
+  if (name.indexOf("Uptown") !== -1) return "Uptown";
+  if (name.indexOf("Downtown") !== -1) return "Downtown";
+  if (name.indexOf("Southbound") !== -1) return "Southbound";
   return "";
 }
 
-async function load() {
-  try {
-    const res = await fetch(API);
-    const data = await res.json();
+function load() {
+  fetch(API)
+    .then(function(res) {
+      return res.json();
+    })
+    .then(function(data) {
+      if (!data || !data.length) {
+        document.getElementById("next").innerText = "No data available";
+        return;
+      }
 
-    if (!data || !data.length) {
-      document.getElementById("next").innerText = "No data available";
-      return;
-    }
+      var groups = {};
 
-    const groups = {};
+      for (var i = 0; i < data.length; i++) {
+        var d = data[i];
+        var line = getLine(d.name);
+        var direction = getDirection(d.name);
+        var key = line + "-" + direction;
+        
+        if (!groups[key]) {
+          groups[key] = {
+            line: line,
+            direction: direction,
+            trains: [],
+            color: d.color
+          };
+        }
+        groups[key].trains.push(d);
+      }
 
-    data.forEach(d => {
-      const line = getLine(d.name);
-      const direction = getDirection(d.name);
-      const key = line + "-" + direction;
+      var keys = Object.keys(groups);
+      for (var k = 0; k < keys.length; k++) {
+        var trains = groups[keys[k]].trains;
+        trains.sort(function(a, b) {
+          return a.mins - b.mins;
+        });
+      }
+
+      var all = [];
+      for (var k = 0; k < keys.length; k++) {
+        var trains = groups[keys[k]].trains;
+        for (var t = 0; t < trains.length; t++) {
+          all.push(trains[t]);
+        }
+      }
+      all.sort(function(a, b) {
+        return a.mins - b.mins;
+      });
+
+      var next = all[0];
+      var nextHtml = '<span class="' + getColorClass(next.color) + '">NEXT: ' + next.name + ' — ' + next.mins + ' min</span>';
+      document.getElementById("next").innerHTML = nextHtml;
+
+      var lineGroups = {};
+      for (var k = 0; k < keys.length; k++) {
+        var group = groups[keys[k]];
+        var line = group.line;
+        if (!lineGroups[line]) {
+          lineGroups[line] = [];
+        }
+        lineGroups[line].push(group);
+      }
+
+      var lineOrder = ["1", "A", "B", "C", "D", "M7", "M11"];
+      var html = "";
       
-      if (!groups[key]) {
-        groups[key] = {
-          line: line,
-          direction: direction,
-          trains: [],
-          color: d.color
-        };
-      }
-      groups[key].trains.push(d);
-    });
+      for (var l = 0; l < lineOrder.length; l++) {
+        var line = lineOrder[l];
+        if (lineGroups[line]) {
+          var directionGroups = lineGroups[line];
+          html += '<div class="block"><div class="title">' + line + '</div>';
 
-    Object.keys(groups).forEach(key => {
-      groups[key].trains.sort((a, b) => a.mins - b.mins);
-    });
-
-    const all = Object.values(groups).flatMap(g => g.trains);
-    all.sort((a, b) => a.mins - b.mins);
-
-    const next = all[0];
-
-    document.getElementById("next").innerHTML = '<span class="' + getColorClass(next.color) + '">NEXT: ' + next.name + ' — ' + next.mins + ' min</span>';
-
-    const lineGroups = {};
-    Object.values(groups).forEach(group => {
-      const line = group.line;
-      if (!lineGroups[line]) {
-        lineGroups[line] = [];
-      }
-      lineGroups[line].push(group);
-    });
-
-    const lineOrder = ["1", "A", "B", "C", "D", "M7", "M11"];
-    let html = "";
-    
-    lineOrder.forEach(line => {
-      if (lineGroups[line]) {
-        const directionGroups = lineGroups[line];
-        html += '<div class="block"><div class="title">' + line + '</div>';
-
-        directionGroups.forEach(dirGroup => {
-          const trains = dirGroup.trains.slice(0, 2);
-          html += '<div class="direction-group"><div class="direction-label">' + dirGroup.direction + '</div>';
-          
-          trains.forEach(t => {
-            html += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' + t.mins + ' min</div>';
-          });
+          for (var dg = 0; dg < directionGroups.length; dg++) {
+            var dirGroup = directionGroups[dg];
+            var trains = dirGroup.trains.slice(0, 2);
+            html += '<div class="direction-group"><div class="direction-label">' + dirGroup.direction + '</div>';
+            
+            for (var tr = 0; tr < trains.length; tr++) {
+              var t = trains[tr];
+              html += '<div class="item ' + getColorClass(t.color) + ' ' + getMinColor(t.mins) + '">' + t.mins + ' min</div>';
+            }
+            
+            html += '</div>';
+          }
           
           html += '</div>';
-        });
-        
-        html += '</div>';
+        }
       }
+
+      document.getElementById("grid").innerHTML = html;
+
+    })
+    .catch(function(e) {
+      console.error("Error:", e);
+      document.getElementById("next").innerText = "Error loading data";
     });
-
-    document.getElementById("grid").innerHTML = html;
-
-  } catch (e) {
-    console.error("Error:", e);
-    document.getElementById("next").innerText = "Error loading data";
-  }
 }
 
 load();
