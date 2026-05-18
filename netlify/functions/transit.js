@@ -11,47 +11,32 @@ export async function handler(event, context) {
       console.error("Error fetching bus data:", e.message);
     }
 
-    // Fetch subway data
-    try {
-      const subwayArrivals = await fetchSubwayArrivals();
-      console.log("Subway arrivals fetched:", subwayArrivals.length);
-      results.push(...subwayArrivals);
-    } catch (e) {
-      console.error("Error fetching subway data:", e.message);
-    }
+    // Add subway test data
+    const subwayData = [
+      { name: "1 Uptown", mins: 3, color: "red", type: "subway" },
+      { name: "1 Uptown", mins: 8, color: "red", type: "subway" },
+      { name: "1 Downtown", mins: 7, color: "red", type: "subway" },
+      { name: "1 Downtown", mins: 15, color: "red", type: "subway" },
+      { name: "A Uptown", mins: 4, color: "blue", type: "subway" },
+      { name: "A Uptown", mins: 11, color: "blue", type: "subway" },
+      { name: "A Downtown", mins: 9, color: "blue", type: "subway" },
+      { name: "A Downtown", mins: 18, color: "blue", type: "subway" },
+      { name: "B Uptown", mins: 5, color: "orange", type: "subway" },
+      { name: "B Uptown", mins: 12, color: "orange", type: "subway" },
+      { name: "B Downtown", mins: 12, color: "orange", type: "subway" },
+      { name: "B Downtown", mins: 20, color: "orange", type: "subway" },
+      { name: "C Uptown", mins: 8, color: "blue", type: "subway" },
+      { name: "C Uptown", mins: 16, color: "blue", type: "subway" },
+      { name: "C Downtown", mins: 11, color: "blue", type: "subway" },
+      { name: "C Downtown", mins: 22, color: "blue", type: "subway" },
+      { name: "D Uptown", mins: 6, color: "orange", type: "subway" },
+      { name: "D Uptown", mins: 14, color: "orange", type: "subway" },
+      { name: "D Downtown", mins: 14, color: "orange", type: "subway" },
+      { name: "D Downtown", mins: 25, color: "orange", type: "subway" }
+    ];
+    results.push(...subwayData);
 
     console.log("Total results:", results.length);
-
-    // If no data, return test data
-    if (results.length === 0) {
-      console.log("No data found, returning fallback test data");
-      results.push(
-        { name: "M7 Southbound", mins: 4, color: "green", type: "bus" },
-        { name: "M7 Southbound", mins: 10, color: "green", type: "bus" },
-        { name: "M11 Southbound", mins: 6, color: "purple", type: "bus" },
-        { name: "M11 Southbound", mins: 13, color: "purple", type: "bus" },
-        { name: "1 Uptown", mins: 3, color: "red", type: "subway" },
-        { name: "1 Uptown", mins: 8, color: "red", type: "subway" },
-        { name: "1 Downtown", mins: 7, color: "red", type: "subway" },
-        { name: "1 Downtown", mins: 15, color: "red", type: "subway" },
-        { name: "A Uptown", mins: 4, color: "blue", type: "subway" },
-        { name: "A Uptown", mins: 11, color: "blue", type: "subway" },
-        { name: "A Downtown", mins: 9, color: "blue", type: "subway" },
-        { name: "A Downtown", mins: 18, color: "blue", type: "subway" },
-        { name: "B Uptown", mins: 5, color: "orange", type: "subway" },
-        { name: "B Uptown", mins: 12, color: "orange", type: "subway" },
-        { name: "B Downtown", mins: 12, color: "orange", type: "subway" },
-        { name: "B Downtown", mins: 20, color: "orange", type: "subway" },
-        { name: "C Uptown", mins: 8, color: "blue", type: "subway" },
-        { name: "C Uptown", mins: 16, color: "blue", type: "subway" },
-        { name: "C Downtown", mins: 11, color: "blue", type: "subway" },
-        { name: "C Downtown", mins: 22, color: "blue", type: "subway" },
-        { name: "D Uptown", mins: 6, color: "orange", type: "subway" },
-        { name: "D Uptown", mins: 14, color: "orange", type: "subway" },
-        { name: "D Downtown", mins: 14, color: "orange", type: "subway" },
-        { name: "D Downtown", mins: 25, color: "orange", type: "subway" }
-      );
-    }
 
     return {
       statusCode: 200,
@@ -82,9 +67,9 @@ async function fetchBusArrivals() {
   
   for (const stopId of stopIds) {
     try {
-      const url = "http://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stopId;
+      const url = "https://api.prod.obanyc.com/api/siri/stop-monitoring.json?key=" + apiKey + "&MonitoringRef=" + stopId;
       
-      console.log("Fetching bus data from:", url);
+      console.log("Fetching bus data from stop:", stopId);
       const response = await fetch(url);
       
       if (!response.ok) {
@@ -93,17 +78,14 @@ async function fetchBusArrivals() {
       }
 
       const data = await response.json();
-      console.log("Got bus response");
-      
       const busData = parseBusData(data);
-      console.log("Parsed bus data, found:", busData.length);
+      console.log("Parsed", busData.length, "arrivals from stop", stopId);
       results.push(...busData);
     } catch (e) {
       console.error("Error with stop", stopId, ":", e.message);
     }
   }
 
-  console.log("Total bus results:", results.length);
   return results;
 }
 
@@ -112,13 +94,11 @@ function parseBusData(data) {
 
   try {
     if (!data || !data.Siri || !data.Siri.ServiceDelivery) {
-      console.log("No Siri data in response");
       return results;
     }
 
     const deliveries = data.Siri.ServiceDelivery.StopMonitoringDelivery;
     if (!deliveries) {
-      console.log("No StopMonitoringDelivery");
       return results;
     }
 
@@ -173,35 +153,5 @@ function parseBusData(data) {
     console.error("Parse error:", e.message);
   }
 
-  return results;
-}
-
-async function fetchSubwayArrivals() {
-  const results = [];
-
-  const subwayData = [
-    { name: "1 Uptown", mins: 3, color: "red", type: "subway" },
-    { name: "1 Uptown", mins: 8, color: "red", type: "subway" },
-    { name: "1 Downtown", mins: 7, color: "red", type: "subway" },
-    { name: "1 Downtown", mins: 15, color: "red", type: "subway" },
-    { name: "A Uptown", mins: 4, color: "blue", type: "subway" },
-    { name: "A Uptown", mins: 11, color: "blue", type: "subway" },
-    { name: "A Downtown", mins: 9, color: "blue", type: "subway" },
-    { name: "A Downtown", mins: 18, color: "blue", type: "subway" },
-    { name: "B Uptown", mins: 5, color: "orange", type: "subway" },
-    { name: "B Uptown", mins: 12, color: "orange", type: "subway" },
-    { name: "B Downtown", mins: 12, color: "orange", type: "subway" },
-    { name: "B Downtown", mins: 20, color: "orange", type: "subway" },
-    { name: "C Uptown", mins: 8, color: "blue", type: "subway" },
-    { name: "C Uptown", mins: 16, color: "blue", type: "subway" },
-    { name: "C Downtown", mins: 11, color: "blue", type: "subway" },
-    { name: "C Downtown", mins: 22, color: "blue", type: "subway" },
-    { name: "D Uptown", mins: 6, color: "orange", type: "subway" },
-    { name: "D Uptown", mins: 14, color: "orange", type: "subway" },
-    { name: "D Downtown", mins: 14, color: "orange", type: "subway" },
-    { name: "D Downtown", mins: 25, color: "orange", type: "subway" }
-  ];
-
-  results.push(...subwayData);
   return results;
 }
