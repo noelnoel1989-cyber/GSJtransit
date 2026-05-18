@@ -1,10 +1,6 @@
 export async function handler() {
   const stops = [
-    { line: "1", id: "120S" },   // example placeholder
-    { line: "B", id: "631S" },
-    { line: "C", id: "631S" },
-    { line: "M7", id: "401094" },
-    { line: "M11", id: "401094" },
+    { line: "M7/M11", id: "401094" },
     { line: "M96", id: "401897" }
   ];
 
@@ -20,12 +16,12 @@ export async function handler() {
         data?.Siri?.ServiceDelivery?.StopMonitoringDelivery?.[0]
         ?.MonitoredStopVisit || [];
 
-      return visits.slice(0, 3).map(v => {
-        const call = v.MonitoredVehicleJourney;
+      const results = visits.map(v => {
+        const call = v.MonitoredVehicleJourney?.MonitoredCall;
 
-        const mins = call?.MonitoredCall?.ExpectedArrivalTime
+        const mins = call?.ExpectedArrivalTime
           ? Math.round(
-              (new Date(call.MonitoredCall.ExpectedArrivalTime) - new Date()) / 60000
+              (new Date(call.ExpectedArrivalTime) - new Date()) / 60000
             )
           : null;
 
@@ -35,12 +31,17 @@ export async function handler() {
         };
       }).filter(x => x.mins !== null);
 
+      // IMPORTANT: force multiple arrivals per line
+      return results.slice(0, 3);
+
     } catch (e) {
       return [];
     }
   }
 
-  const results = (await Promise.all(stops.map(fetchStop))).flat();
+  const grouped = await Promise.all(stops.map(fetchStop));
+
+  const flat = grouped.flat();
 
   return {
     statusCode: 200,
@@ -48,6 +49,6 @@ export async function handler() {
       "Access-Control-Allow-Origin": "*",
       "Content-Type": "application/json"
     },
-    body: JSON.stringify(results)
+    body: JSON.stringify(flat)
   };
 }
