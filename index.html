@@ -31,12 +31,23 @@
       margin-bottom: 15px;
     }
 
+    .direction-group {
+      margin-bottom: 20px;
+    }
+
+    .direction-label {
+      font-size: 14px;
+      opacity: 0.6;
+      margin-bottom: 8px;
+      font-style: italic;
+    }
+
     .item {
       font-size: 28px;
-      margin: 8px 0;
+      margin: 6px 0;
       padding: 8px 12px;
       border-radius: 6px;
-      display: inline-block;
+      display: block;
     }
 
     .green { color: #00ff66; }
@@ -101,7 +112,7 @@ function getMinColor(mins) {
   return "red-text";
 }
 
-// normalize line name from backend text
+// Get the line number from the name
 function getLine(name) {
   if (!name) return "Unknown";
 
@@ -112,6 +123,13 @@ function getLine(name) {
   if (name.includes("D")) return "D";
 
   return name;
+}
+
+// Get direction (Uptown or Downtown)
+function getDirection(name) {
+  if (name.includes("Uptown")) return "Uptown";
+  if (name.includes("Downtown")) return "Downtown";
+  return "";
 }
 
 function debug(msg) {
@@ -139,24 +157,32 @@ async function load() {
 
     debug(`Processing ${data.length} items`);
 
-    // group by line
+    // Group by line and direction
     const groups = {};
 
     data.forEach(d => {
       const line = getLine(d.name);
-      if (!groups[line]) groups[line] = [];
-      groups[line].push(d);
+      const direction = getDirection(d.name);
+      const key = `${line}-${direction}`;
+      
+      if (!groups[key]) {
+        groups[key] = {
+          line: line,
+          direction: direction,
+          trains: [],
+          color: d.color
+        };
+      }
+      groups[key].trains.push(d);
     });
 
-    debug(`Grouped into ${Object.keys(groups).length} lines`);
-
-    // sort each group
-    Object.keys(groups).forEach(line => {
-      groups[line].sort((a, b) => a.mins - b.mins);
+    // Sort each group by minutes
+    Object.keys(groups).forEach(key => {
+      groups[key].trains.sort((a, b) => a.mins - b.mins);
     });
 
-    // find global next
-    const all = Object.values(groups).flat();
+    // find global next (soonest arrival)
+    const all = Object.values(groups).flatMap(g => g.trains);
     all.sort((a, b) => a.mins - b.mins);
 
     const next = all[0];
@@ -166,18 +192,39 @@ async function load() {
         NEXT: ${next.name} — ${next.mins} min
       </span>`;
 
-    // render grid
-    const html = Object.keys(groups).map(line => {
-      const items = groups[line].slice(0, 3);
+    // render grid - group by line only (not by direction)
+    const lineGroups = {};
+    Object.values(groups).forEach(group => {
+      const line = group.line;
+      if (!lineGroups[line]) {
+        lineGroups[line] = [];
+      }
+      lineGroups[line].push(group);
+    });
+
+    const html = Object.keys(lineGroups).sort().map(line => {
+      const directionGroups = lineGroups[line];
+      const color = directionGroups[0].color; // All directions of same line have same color
+
+      const directionsHtml = directionGroups.map(dirGroup => {
+        const trains = dirGroup.trains.slice(0, 2); // Get first 2 trains
+        
+        return `
+          <div class="direction-group">
+            <div class="direction-label">${dirGroup.direction}</div>
+            ${trains.map(t =>
+              `<div class="item ${getColorClass(t.color)} ${getMinColor(t.mins)}">
+                ${t.mins} min
+              </div>`
+            ).join("")}
+          </div>
+        `;
+      }).join("");
 
       return `
         <div class="block">
           <div class="title">${line}</div>
-          ${items.map(i =>
-            `<div class="item ${getColorClass(i.color)}">
-              ${i.name}: ${i.mins} min
-            </div>`
-          ).join("")}
+          ${directionsHtml}
         </div>
       `;
     }).join("");
